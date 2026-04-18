@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>Finanças Premium v8.9</title>
+    <title>Finanças Premium v9.0</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
     <meta name="theme-color" content="#0f0c29">
@@ -138,65 +138,4 @@
         </div>
 
         <div class="glass" id="list-container" style="margin-top:15px;"></div>
-        <div class="fab" onclick="openAddModal()" id="main-fab">+</div>
-    </div>
-
-    <div id="feira-screen" class="screen" style="max-width: 800px;"><div class="feira-header glass"><button class="btn-outline" onclick="closeFeiraScreen()" style="width: auto; padding: 5px 15px;">❮ Voltar</button><h3 style="margin: 0;">Carrinho de Feira</h3><button class="btn-outline" onclick="clearFeira()" style="width: auto; padding: 5px 15px; color: var(--danger); border-color: var(--danger);">Limpar</button></div><div class="glass"><div class="feira-total-display">R$ <span id="feira-total-val">0.00</span></div></div><div class="glass" id="feira-list-container" style="margin-top: 15px;"></div><div class="fab" onclick="openFeiraItemModal()" style="background: var(--success); color: white;">+</div></div>
-    <div id="modal-notifications" class="modal" style="z-index: 999;"><div class="glass modal-content" style="max-height: 80vh; display: flex; flex-direction: column;"><h3 style="color: var(--primary-gold);">Histórico da Casa 🔔</h3><div id="notifications-list" style="overflow-y: auto; text-align: left; margin: 15px 0; font-size: 0.85rem; flex: 1;"></div><button onclick="closeModals()" class="btn-outline">Fechar</button></div></div>
-    <div id="modal-feira-item" class="modal" style="z-index: 999;"><div class="glass modal-content"><h3 id="feira-item-title">Adicionar Produto</h3><input type="hidden" id="feira-edit-id"><input type="text" id="feira-item-name" placeholder="Nome do Produto"><input type="number" id="feira-item-val" placeholder="Valor Unitário (R$)"><input type="number" id="feira-item-qtd" placeholder="Quantidade" value="1"><div class="flex-row" style="margin-top: 20px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleSaveFeiraItem()">Confirmar</button></div></div></div>
-    <div id="modal-alarm" class="modal" style="z-index: 999;"><div class="glass modal-content"><h3>Agendar Lembrete ⏰</h3><input type="text" id="alarm-desc" placeholder="Qual é o lembrete?"><input type="date" id="alarm-date"><input type="time" id="alarm-time"><div class="flex-row" style="margin-top: 15px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleSaveAlarm()">Agendar</button></div></div></div>
-    
-    <div id="modal-add" class="modal" style="z-index: 999;">
-        <div class="glass modal-content" style="text-align: left;">
-            <h3 id="form-title" style="text-align:center;">Nova Despesa</h3>
-            <input type="hidden" id="edit-id" value="">
-            <input type="text" id="exp-desc" placeholder="Descrição (Ex: Luz, Mercado)">
-            <input type="number" id="exp-val" placeholder="Valor Total (R$)">
-            <div style="display:flex; gap:10px;">
-                <select id="exp-cat"></select>
-                <button onclick="openCategoryModal()" style="width: auto; font-size: 1.5rem; padding: 0 15px;">+</button>
-            </div>
-            
-            <label style="font-size: 0.8rem; color: var(--primary-gold); display: block; margin-top: 10px;">Data da Compra</label>
-            <input type="date" id="exp-date">
-            
-            <label style="font-size: 0.8rem; color: var(--info); display: block; margin-top: 10px;">Agendar Alarme para Pagar? (Opcional)</label>
-            <div style="display: flex; gap: 10px;">
-                <input type="date" id="exp-alarm-date" style="flex: 2;">
-                <input type="time" id="exp-alarm-time" style="flex: 1;">
-            </div>
-
-            <div id="parcelas-container">
-                <label style="font-size: 0.8rem; color: var(--primary-gold); display: block; margin-top: 10px;">Parcelas</label>
-                <select id="exp-installments">
-                    <option value="1">À vista (1x)</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="12">12x</option>
-                </select>
-            </div>
-            <div id="split-options">
-                <label style="font-size: 0.8rem; color: var(--primary-gold); display: block; margin-top: 10px;">Divisão</label>
-                <select id="exp-split">
-                    </select>
-            </div>
-            <div class="flex-row" style="margin-top: 20px;">
-                <button onclick="closeModals()" class="btn-outline">Cancelar</button>
-                <button onclick="handleAddEntry()">Salvar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-category" class="modal" style="z-index: 1000;">
-        <div class="glass modal-content">
-            <h3>Nova Categoria</h3>
-            <input type="text" id="new-cat-name" placeholder="Nome da Categoria (Ex: Pet)">
-            <div class="flex-row" style="margin-top: 20px;">
-                <button onclick="closeCategoryModal()" class="btn-outline">Cancelar</button>
-                <button onclick="confirmAddCategory()">Criar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-confirm" class="modal" style="z-index: 1010;"><div class="glass modal-content"><h3 id="confirm-title" style="color: var(--danger);">Atenção</h3><p id="confirm-msg" style="margin: 20px 0;">Você tem certeza?</p><div class="flex-row"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button id="btn-confirm-action" style="background: var(--danger); color: white;">Sim, confirmar</button></div></div></div>
-
-    <script type="module" src="script.js"></script>
-</body>
-</html>
+        <div class="fab
