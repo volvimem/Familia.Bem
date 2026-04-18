@@ -39,7 +39,6 @@ window.closeModals = function() {
 };
 
 window.closeCategoryModal = function() {
-    // Fecha SÓ a categoria, não afeta a tela de despesa que está por trás!
     document.getElementById('modal-category').classList.remove('active');
 };
 
@@ -48,7 +47,7 @@ function showToast(msg, isError = false) {
     t.innerText = msg;
     t.style.backgroundColor = isError ? 'var(--danger)' : 'var(--success)';
     t.className = "show";
-    setTimeout(() => { t.className = t.className.replace("show", ""); }, 2900);
+    setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
 }
 
 let pendingConfirmAction = null;
@@ -97,36 +96,57 @@ window.handleRegister = async function() {
     const cpf1 = document.getElementById('reg-cpf-1').value.replace(/\D/g, '');
     const cpf2 = document.getElementById('reg-cpf-2').value.replace(/\D/g, '');
 
-    if(!email || !pass || !cpf1 || !cpf2) return showToast("Preencha todos os campos!", true);
-    if(pass.length < 6) return showToast("A senha precisa ter no mínimo 6 caracteres.", true);
+    if(!email || !pass || !cpf1 || !cpf2) return showToast("⚠️ Preencha todos os campos!", true);
+    if(pass.length < 6) return showToast("⚠️ A senha precisa ter no mínimo 6 caracteres.", true);
 
     try {
+        showToast("⏳ Criando conta...");
         const userCred = await createUserWithEmailAndPassword(auth, email, pass);
         currentFamilyId = userCred.user.uid;
         db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: { titular: cpf1, conjuge: cpf2 }, profiles: {} };
         saveDB();
-        showToast("Família cadastrada com sucesso!");
+        showToast("✅ Família cadastrada com sucesso!");
     } catch(error) {
-        if(error.code === 'auth/email-already-in-use') showToast("Este e-mail já está em uso!", true);
-        else showToast("Erro ao registrar. Verifique o E-mail.", true);
+        if(error.code === 'auth/email-already-in-use') showToast("❌ Este e-mail já está em uso!", true);
+        else if(error.code === 'auth/invalid-email') showToast("❌ E-mail inválido!", true);
+        else showToast("❌ Erro ao registrar.", true);
     }
 };
 
 window.attemptLogin = async function() {
     const email = document.getElementById('login-email').value.trim();
     const pass = document.getElementById('login-pass').value;
-    if(!email || !pass) return showToast("Preencha E-mail e Senha!", true);
-    try { await signInWithEmailAndPassword(auth, email, pass); } catch(error) { showToast("E-mail ou senha incorretos!", true); }
+    
+    if(!email || !pass) return showToast("⚠️ Preencha E-mail e Senha!", true);
+    
+    try { 
+        showToast("⏳ Conectando...");
+        await signInWithEmailAndPassword(auth, email, pass); 
+        showToast("✅ Login realizado!");
+    } catch(error) { 
+        console.error(error.code);
+        if(error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+            showToast("❌ Senha incorreta!", true);
+        } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
+            showToast("❌ E-mail não cadastrado ou inválido!", true);
+        } else if (error.code === 'auth/too-many-requests') {
+            showToast("❌ Muitas tentativas. Aguarde um momento.", true);
+        } else {
+            showToast("❌ Erro ao entrar. Verifique os dados.", true);
+        }
+    }
 };
 
 window.handleForgotPassword = async function() {
     const email = document.getElementById('forgot-email').value.trim();
-    if(!email) return showToast("Digite o e-mail da conta!", true);
+    if(!email) return showToast("⚠️ Digite o e-mail da conta!", true);
     try {
         await sendPasswordResetEmail(auth, email);
-        showToast("Link enviado para o e-mail da Família!");
+        showToast("📧 Link enviado para o e-mail da Família!");
         window.showScreen('login-screen');
-    } catch(error) { showToast("Erro ao enviar. Verifique o E-mail.", true); }
+    } catch(error) {
+        showToast("❌ Erro ao enviar. Verifique o E-mail.", true);
+    }
 };
 
 window.logoutFamily = function() {
@@ -148,28 +168,34 @@ window.selectProfile = async function(role) {
             document.getElementById('profile-setup-title').innerText = `Criar Senha - ${role.charAt(0).toUpperCase() + role.slice(1)}`;
             window.showScreen('profile-setup-screen');
         }
-    } catch(e) { showToast("Erro ao conectar no perfil", true); }
+    } catch(e) { showToast("❌ Erro ao conectar no perfil", true); }
 };
 
 window.setupProfile = async function() {
     const pass = document.getElementById('setup-profile-pass').value;
     const phrase = document.getElementById('setup-profile-phrase').value.trim();
-    if(!pass || !phrase) return showToast("Preencha a senha e a frase de segurança!", true);
+    if(!pass || !phrase) return showToast("⚠️ Preencha a senha e a frase de segurança!", true);
 
     await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`), { password: pass, phrase: phrase });
-    showToast("Senha privada criada!");
+    showToast("✅ Senha privada criada!");
     enterProfile(selectedRoleToLogin);
 };
 
 window.loginProfile = async function() {
     const pass = document.getElementById('profile-pass').value;
-    if(!pass) return showToast("Digite a sua senha de perfil!", true);
+    if(!pass) return showToast("⚠️ Digite a sua senha de perfil!", true);
 
-    const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
-    if(snap.exists() && snap.val().password === pass) {
-        document.getElementById('profile-pass').value = '';
-        enterProfile(selectedRoleToLogin);
-    } else { showToast("Senha do perfil incorreta!", true); }
+    try {
+        const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
+        if(snap.exists() && snap.val().password === pass) {
+            document.getElementById('profile-pass').value = '';
+            enterProfile(selectedRoleToLogin);
+        } else { 
+            showToast("❌ Senha do perfil incorreta!", true); 
+        }
+    } catch(e) {
+        showToast("❌ Erro de conexão com o banco.", true);
+    }
 };
 
 window.openProfileRecovery = function() {
@@ -184,15 +210,15 @@ window.recoverProfile = async function() {
     const phrase = document.getElementById('forgot-profile-phrase').value.trim();
     const newPass = document.getElementById('forgot-profile-new-pass').value;
 
-    if(!phrase || !newPass) return showToast("Preencha a frase e a nova senha!", true);
-    if(newPass.length < 6) return showToast("A senha precisa ter no mínimo 6 caracteres.", true);
+    if(!phrase || !newPass) return showToast("⚠️ Preencha a frase e a nova senha!", true);
+    if(newPass.length < 6) return showToast("⚠️ A senha precisa ter no mínimo 6 caracteres.", true);
 
     const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}`));
     if(snap.exists() && snap.val().phrase.toLowerCase() === phrase.toLowerCase()) {
         await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}/password`), newPass);
-        showToast("Senha do perfil alterada com sucesso!");
+        showToast("✅ Senha do perfil alterada com sucesso!");
         window.showScreen('profile-screen');
-    } else { showToast("Frase de segurança incorreta!", true); }
+    } else { showToast("❌ Frase de segurança incorreta!", true); }
 };
 
 window.recoverProfileWithFamilyPass = async function() {
@@ -200,16 +226,16 @@ window.recoverProfileWithFamilyPass = async function() {
     const familyPass = document.getElementById('forgot-profile-family-pass').value;
     const newPass = document.getElementById('forgot-profile-new-pass').value;
 
-    if(!familyPass || !newPass) return showToast("Preencha a senha da família e a nova senha!", true);
-    if(newPass.length < 6) return showToast("A nova senha precisa ter no mínimo 6 caracteres.", true);
+    if(!familyPass || !newPass) return showToast("⚠️ Preencha a senha da família e a nova senha!", true);
+    if(newPass.length < 6) return showToast("⚠️ A nova senha precisa ter no mínimo 6 caracteres.", true);
 
     try {
         const email = auth.currentUser.email;
         await signInWithEmailAndPassword(auth, email, familyPass); 
         await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}/password`), newPass);
-        showToast("Senha do perfil alterada usando a conta Família!");
+        showToast("✅ Senha do perfil alterada usando a conta Família!");
         window.showScreen('profile-screen');
-    } catch(error) { showToast("Senha da Família incorreta!", true); }
+    } catch(error) { showToast("❌ Senha da Família incorreta!", true); }
 };
 
 function enterProfile(role) {
@@ -288,44 +314,51 @@ window.confirmAddCategory = function() {
     } 
 };
 
+window.updateSplitOptions = function() {
+    const splitSelect = document.getElementById('exp-split');
+    if (!splitSelect) return;
+    
+    if (currentUser === 'marido') {
+        splitSelect.innerHTML = `
+            <option value="50">Pagamos juntos (50/50)</option>
+            <option value="100">Eu paguei tudo (A Esposa me deve a metade)</option>
+            <option value="-100">A Esposa pagou tudo (Eu devo a metade a ela)</option>
+            <option value="0">Eu assumi tudo (A Esposa não deve nada)</option>
+        `;
+    } else if (currentUser === 'esposa') {
+        splitSelect.innerHTML = `
+            <option value="50">Pagamos juntos (50/50)</option>
+            <option value="100">Eu paguei tudo (O Marido me deve a metade)</option>
+            <option value="-100">O Marido pagou tudo (Eu devo a metade a ele)</option>
+            <option value="0">Eu assumi tudo (O Marido não deve nada)</option>
+        `;
+    }
+};
+
 window.openAddModal = function() { 
     document.getElementById('edit-id').value = ''; 
     document.getElementById('form-title').innerText = "Nova Despesa"; 
     document.getElementById('exp-desc').value = ''; 
     document.getElementById('exp-val').value = ''; 
     document.getElementById('exp-date').value = getIsoDate(selectedDate);
-    
-    // Limpa e reseta campos de Alarme Automático
     document.getElementById('exp-alarm-date').value = '';
     document.getElementById('exp-alarm-time').value = '';
     
-    // Deixa o texto de Divisão DINÂMICO (Elimina a confusão)
-    const splitSelect = document.getElementById('exp-split');
-    const partner = currentUser === 'marido' ? 'Esposa' : 'Marido';
-    splitSelect.innerHTML = `
-        <option value="50">Pagamos juntos (50/50)</option>
-        <option value="100">Eu paguei tudo (A ${partner} me deve a metade)</option>
-        <option value="-100">A ${partner} pagou tudo (Eu devo a metade a ela)</option>
-        <option value="0">Eu assumi tudo (A ${partner} não deve nada)</option>
-    `;
+    window.updateSplitOptions();
     
     document.getElementById('parcelas-container').style.display = 'block'; 
     document.getElementById('modal-add').classList.add('active'); 
 };
 
 window.handleAddEntry = function() {
-    const editId = document.getElementById('edit-id').value; 
-    const desc = document.getElementById('exp-desc').value;
-    const valTotal = parseFloat(document.getElementById('exp-val').value); 
-    const cat = document.getElementById('exp-cat').value;
-    const date = document.getElementById('exp-date').value; 
-    const split = parseInt(document.getElementById('exp-split').value); 
-    const parcels = parseInt(document.getElementById('exp-installments').value);
+    const editId = document.getElementById('edit-id').value; const desc = document.getElementById('exp-desc').value;
+    const valTotal = parseFloat(document.getElementById('exp-val').value); const cat = document.getElementById('exp-cat').value;
+    const date = document.getElementById('exp-date').value; const split = parseInt(document.getElementById('exp-split').value); const parcels = parseInt(document.getElementById('exp-installments').value);
     
     const alarmDate = document.getElementById('exp-alarm-date').value;
     const alarmTime = document.getElementById('exp-alarm-time').value;
 
-    if (!desc || isNaN(valTotal) || !date) return showToast("Preencha os campos obrigatórios!", true);
+    if (!desc || isNaN(valTotal) || !date) return showToast("⚠️ Preencha os campos obrigatórios!", true);
 
     const saveAction = () => {
         if (editId) {
@@ -344,17 +377,16 @@ window.handleAddEntry = function() {
                 db.entries.push({ 
                     id: baseId, desc: finalDesc, val: valParcela, category: cat, 
                     date: getIsoDate(newDate), split: split, owner: currentUser, type: currentView,
-                    status: currentView === 'home' ? 'pending' : 'approved' // Se for de Casa, aguarda aprovação!
+                    status: currentView === 'home' ? 'pending' : 'approved' 
                 });
 
-                // Se definiu Alarme para pagar (só na primeira parcela para não floodar)
                 if (alarmDate && alarmTime && i === 0) {
                     db.entries.push({ id: baseId + 1000, isAlarm: true, desc: "⏰ Pagar: " + finalDesc, date: alarmDate, time: alarmTime, owner: currentUser, type: currentView });
                 }
             }
             if (currentView === 'home') { const msg = `🏠 ${currentUser.toUpperCase()} lançou: ${desc} (Aguardando Aprovação)`; sendNotification("Despesa Pendente", msg); logNotification(msg); }
         }
-        saveDB(); showToast("Salvo!"); window.closeModals();
+        saveDB(); showToast("✅ Salvo com sucesso!"); window.closeModals();
     };
     if (editId) window.showConfirmModal("Confirmar Alteração", "Deseja salvar as mudanças neste registro?", saveAction); else saveAction();
 };
@@ -364,7 +396,7 @@ window.approveEntry = function(id) {
     if(idx > -1) {
         db.entries[idx].status = 'approved';
         logNotification(`✅ ${currentUser.toUpperCase()} aprovou a despesa "${db.entries[idx].desc}".`);
-        saveDB(); renderAll(); showToast("Despesa aprovada!");
+        saveDB(); renderAll(); showToast("✅ Despesa aprovada!");
     }
 };
 
@@ -372,24 +404,39 @@ window.rejectEntry = function(id) {
     const idx = db.entries.findIndex(e => e.id === id);
     if(idx > -1) {
         db.entries[idx].type = 'personal'; 
-        db.entries[idx].status = 'approved'; // Aprova automaticamente para a conta pessoal de quem enviou
-        logNotification(`❌ ${currentUser.toUpperCase()} recusou a despesa "${db.entries[idx].desc}". Ela foi enviada para o painel Pessoal do criador.`);
-        saveDB(); renderAll(); showToast("Despesa negada!");
+        db.entries[idx].status = 'approved'; 
+        logNotification(`❌ ${currentUser.toUpperCase()} recusou a despesa "${db.entries[idx].desc}". Ela foi para o painel Pessoal do criador.`);
+        saveDB(); renderAll(); showToast("❌ Despesa negada!");
     }
 };
 
-window.editEntry = function(id) { const e = db.entries.find(x => x.id === id); document.getElementById('edit-id').value = e.id; document.getElementById('form-title').innerText = "Editar Registro"; document.getElementById('exp-desc').value = e.desc; document.getElementById('exp-val').value = e.val; document.getElementById('exp-cat').value = e.category; document.getElementById('exp-date').value = e.date; document.getElementById('exp-split').value = e.split; document.getElementById('parcelas-container').style.display = 'none'; document.getElementById('modal-add').classList.add('active'); };
-window.deleteEntry = function(id) { window.showConfirmModal("Excluir", "Tem certeza que deseja apagar este registro?", () => { const e = db.entries.find(x => x.id === id); if(e && e.type === 'home') logNotification(`🗑 ${currentUser.toUpperCase()} apagou a despesa "${e.desc}".`); db.entries = db.entries.filter(x => x.id !== id); saveDB(); showToast("Removido!"); }); };
+window.editEntry = function(id) { 
+    const e = db.entries.find(x => x.id === id); 
+    document.getElementById('edit-id').value = e.id; 
+    document.getElementById('form-title').innerText = "Editar Registro"; 
+    document.getElementById('exp-desc').value = e.desc; 
+    document.getElementById('exp-val').value = e.val; 
+    document.getElementById('exp-cat').value = e.category; 
+    document.getElementById('exp-date').value = e.date; 
+    
+    window.updateSplitOptions(); 
+    document.getElementById('exp-split').value = e.split; 
+    
+    document.getElementById('parcelas-container').style.display = 'none'; 
+    document.getElementById('modal-add').classList.add('active'); 
+};
+
+window.deleteEntry = function(id) { window.showConfirmModal("Excluir", "Tem certeza que deseja apagar este registro?", () => { const e = db.entries.find(x => x.id === id); if(e && e.type === 'home') logNotification(`🗑 ${currentUser.toUpperCase()} apagou a despesa "${e.desc}".`); db.entries = db.entries.filter(x => x.id !== id); saveDB(); showToast("🗑 Removido!"); }); };
 
 window.openAlarmModal = function() { document.getElementById('modal-alarm').classList.add('active'); };
-window.handleSaveAlarm = function() { const desc = document.getElementById('alarm-desc').value; const date = document.getElementById('alarm-date').value; const time = document.getElementById('alarm-time').value; if(!desc || !date || !time) return showToast("Preencha todos os campos do alarme!", true); db.entries.push({ id: Date.now(), isAlarm: true, desc: "⏰ " + desc, date, time, owner: currentUser, type: currentView }); saveDB(); window.closeModals(); showToast("Alarme Agendado!"); };
+window.handleSaveAlarm = function() { const desc = document.getElementById('alarm-desc').value; const date = document.getElementById('alarm-date').value; const time = document.getElementById('alarm-time').value; if(!desc || !date || !time) return showToast("⚠️ Preencha todos os campos do alarme!", true); db.entries.push({ id: Date.now(), isAlarm: true, desc: "⏰ " + desc, date, time, owner: currentUser, type: currentView }); saveDB(); window.closeModals(); showToast("⏰ Alarme Agendado!"); };
 
 window.showFeiraScreen = function() { window.showScreen('feira-screen'); renderFeira(); }; window.closeFeiraScreen = function() { window.showScreen('main-screen'); };
 window.openFeiraItemModal = function() { document.getElementById('feira-edit-id').value = ''; document.getElementById('feira-item-name').value = ''; document.getElementById('feira-item-val').value = ''; document.getElementById('modal-feira-item').classList.add('active'); };
 window.handleSaveFeiraItem = function() {
     const id = document.getElementById('feira-edit-id').value; const name = document.getElementById('feira-item-name').value; const val = parseFloat(document.getElementById('feira-item-val').value); const qtd = parseFloat(document.getElementById('feira-item-qtd').value);
-    if(isNaN(val)) return showToast("Preencha o valor unitário!", true);
-    const save = () => { if(id) { const idx = db.feiraItems.findIndex(i => i.id == id); db.feiraItems[idx] = { id, name, val, qtd }; } else { db.feiraItems.push({ id: Date.now(), name, val, qtd }); } saveDB(); renderFeira(); window.closeModals(); showToast("Item Salvo!"); };
+    if(isNaN(val)) return showToast("⚠️ Preencha o valor unitário!", true);
+    const save = () => { if(id) { const idx = db.feiraItems.findIndex(i => i.id == id); db.feiraItems[idx] = { id, name, val, qtd }; } else { db.feiraItems.push({ id: Date.now(), name, val, qtd }); } saveDB(); renderFeira(); window.closeModals(); showToast("✅ Item Salvo!"); };
     if(id) window.showConfirmModal("Editar Item", "Deseja alterar este item do carrinho?", save); else save();
 };
 function renderFeira() {
@@ -406,8 +453,6 @@ function renderAll() {
     const baseMonthEntries = db.entries.filter(e => { const [y, m] = e.date.split('-'); return parseInt(y) === selY && (parseInt(m)-1) === selM && !e.isAlarm; });
 
     let viewMonthEntries = []; let totalM = 0; let totalE = 0; let debtM = 0; let debtE = 0; let personalTotal = 0;
-    
-    // Para as contas da casa, usamos APENAS as que já foram aprovadas (status !== 'pending')
     const homeMonthEntries = baseMonthEntries.filter(e => e.type === 'home' && e.status !== 'pending');
     
     homeMonthEntries.forEach(e => {
@@ -417,13 +462,22 @@ function renderAll() {
     });
 
     if (currentView === 'home') {
-        viewMonthEntries = homeMonthEntries; // Gráfico da Casa só mostra os aprovados
+        viewMonthEntries = homeMonthEntries; 
         document.getElementById('stat-m').innerText = `R$ ${totalM.toFixed(2)}`; document.getElementById('stat-e').innerText = `R$ ${totalE.toFixed(2)}`;
         document.getElementById('card-esposa').style.display = 'block'; document.getElementById('card-balance').style.display = 'block'; document.getElementById('label-marido').innerText = 'Total Marido';
-        const bal = debtE - debtM; const balEl = document.getElementById('stat-balance');
-        if(bal > 0) { balEl.innerText = `Esposa deve R$ ${bal.toFixed(2)}`; balEl.style.color = "var(--danger)"; } else if(bal < 0) { balEl.innerText = `Marido deve R$ ${Math.abs(bal).toFixed(2)}`; balEl.style.color = "var(--danger)"; } else { balEl.innerText = "Tudo quitado!"; balEl.style.color = "var(--success)"; }
+        
+        const bal = debtE - debtM; 
+        const balEl = document.getElementById('stat-balance');
+        
+        if (bal > 0) { 
+            if (currentUser === 'esposa') { balEl.innerText = `Você deve R$ ${bal.toFixed(2)} ao Marido`; balEl.style.color = "var(--danger)"; } 
+            else { balEl.innerText = `A Esposa lhe deve R$ ${bal.toFixed(2)}`; balEl.style.color = "var(--success)"; }
+        } else if (bal < 0) { 
+            if (currentUser === 'marido') { balEl.innerText = `Você deve R$ ${Math.abs(bal).toFixed(2)} à Esposa`; balEl.style.color = "var(--danger)"; } 
+            else { balEl.innerText = `O Marido lhe deve R$ ${Math.abs(bal).toFixed(2)}`; balEl.style.color = "var(--success)"; }
+        } else { balEl.innerText = "Tudo quitado!"; balEl.style.color = "var(--success)"; }
+
     } else {
-        // Aba Pessoal: Mostra os gastos aprovados da casa + os gastos pessoais
         viewMonthEntries = baseMonthEntries.filter(e => (e.type === 'home' && e.status !== 'pending') || (e.type === 'personal' && e.owner === currentUser));
         viewMonthEntries.filter(e => e.type === 'personal' && e.owner === currentUser).forEach(e => personalTotal += e.val);
         document.getElementById('stat-m').innerText = `R$ ${(personalTotal).toFixed(2)}`; document.getElementById('card-esposa').style.display = 'none';
@@ -433,8 +487,6 @@ function renderAll() {
     drawChart(viewMonthEntries);
 
     const dayStr = getIsoDate(selectedDate); const container = document.getElementById('list-container'); container.innerHTML = '<h4>Lançamentos do dia</h4>';
-    
-    // Lista do dia mostra pendentes para que possam ser aprovados!
     const viewDayEntries = db.entries.filter(e => { if(e.date !== dayStr) return false; if(currentView === 'home') return e.type === 'home' || e.isAlarm; return e.type === 'home' || (e.type === 'personal' && e.owner === currentUser) || (e.isAlarm && e.owner === currentUser); });
 
     if(viewDayEntries.length === 0) container.innerHTML += '<p style="text-align:center; opacity:0.5;">Nenhum registro no dia.</p>';
@@ -444,20 +496,15 @@ function renderAll() {
         } 
         else { 
             const icon = e.type === 'home' ? '🏠' : '👤'; 
-            let statusTag = '';
-            let actionHtml = '';
+            let statusTag = ''; let actionHtml = '';
 
             if (e.type === 'home' && e.status === 'pending') {
                 statusTag = `<span style="font-size: 0.65rem; background: var(--danger); padding: 2px 6px; border-radius: 8px; margin-left: 5px;">Aguardando Aval</span>`;
-                if (e.owner !== currentUser) {
-                    actionHtml = `<button onclick="approveEntry(${e.id})" style="color:var(--success)">✅</button><button onclick="rejectEntry(${e.id})" style="color:var(--danger)">❌</button>`;
-                } else {
-                    actionHtml = `<button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
-                }
+                if (e.owner !== currentUser) { actionHtml = `<button onclick="approveEntry(${e.id})" style="color:var(--success)">✅</button><button onclick="rejectEntry(${e.id})" style="color:var(--danger)">❌</button>`; } 
+                else { actionHtml = `<button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; }
             } else {
                 actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
             }
-
             container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${e.val.toFixed(2)} - ${e.category} ${statusTag}</small></div><div class="action-btns">${actionHtml}</div></div>`; 
         }
     });
