@@ -27,6 +27,7 @@ let selectedDate = new Date();
 const chartColors = ['#d4af37', '#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1c40f', '#1abc9c'];
 
 let db = { categories: [], entries: [], feiraItems: [], notificationsLog: [], cpfs: {}, profiles: {} };
+let poppedUpIds = new Set(); // Controle para não repetir o popup da mesma despesa
 
 // --- 1. FUNÇÕES GERAIS E UI ---
 window.showScreen = function(id) {
@@ -85,7 +86,9 @@ function listenToCoupleData() {
             db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: {}, profiles: {} };
             saveDB();
         }
-        updateCategorySelect(); renderAll();
+        updateCategorySelect(); 
+        renderAll();
+        checkForPendingApprovals(); // Verifica se precisa abrir o popup
     });
 }
 
@@ -253,7 +256,7 @@ window.logoutProfile = function() {
     });
 };
 
-// --- 5. LOG E AVISOS ---
+// --- 5. LOG E NOTIFICAÇÕES (POPUP) ---
 function sendNotification(title, body) { if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body: body, icon: 'icon-512.png' }); }
 function logNotification(text) {
     const now = new Date(); const logStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')} às ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -272,6 +275,36 @@ function checkTodayInstallments() {
     const todayStr = getIsoDate(new Date()); const dueToday = db.entries.filter(e => e.date === todayStr && e.desc.includes('/') && e.type === 'home');
     dueToday.forEach(e => { sendNotification("💸 Parcela Vencendo Hoje!", `${e.desc} - Valor: R$ ${e.val.toFixed(2)}`); });
 }
+
+// Verifica e exibe o Popup de Aprovação
+function checkForPendingApprovals() {
+    if (!currentUser) return;
+    const pending = db.entries.find(e => e.type === 'home' && e.status === 'pending' && e.owner !== currentUser);
+    if (pending && !poppedUpIds.has(pending.id)) {
+        poppedUpIds.add(pending.id);
+        window.showApprovalPopup(pending);
+    }
+}
+
+window.showApprovalPopup = function(entry) {
+    let splitText = "";
+    if (entry.split === 50) splitText = "Dividido igualmente (50/50)";
+    else if (entry.split === 100) splitText = `${entry.owner.toUpperCase()} pagou tudo (Você deve a metade)`;
+    else if (entry.split === -100) splitText = `Você pagou tudo (O ${entry.owner.toUpperCase()} lhe deve a metade)`;
+    else if (entry.split === 0) splitText = `${entry.owner.toUpperCase()} assumiu tudo (Você não deve nada)`;
+
+    document.getElementById('approval-popup-content').innerHTML = `
+        <strong style="font-size:1.1rem; color:var(--text-light);">${entry.desc}</strong><br>
+        <span style="opacity: 0.8;">Valor: R$ ${entry.val.toFixed(2)} | Data: ${entry.date.split('-').reverse().join('/')}</span><br><br>
+        <strong style="color: var(--primary-gold);">Divisão Solicitada:</strong><br>
+        <span style="color: var(--info);">${splitText}</span>
+    `;
+    
+    document.getElementById('btn-approve-popup').onclick = () => { window.approveEntry(entry.id); window.closeModals(); };
+    document.getElementById('btn-reject-popup').onclick = () => { window.rejectEntry(entry.id); window.closeModals(); };
+    
+    document.getElementById('modal-approval-popup').classList.add('active');
+};
 
 // --- 6. NAVEGAÇÃO E CRUD ---
 window.setTab = function(tab) { currentView = tab; document.getElementById('tab-home').classList.toggle('active', tab === 'home'); document.getElementById('tab-personal').classList.toggle('active', tab === 'personal'); document.getElementById('split-options').style.display = tab === 'home' ? 'block' : 'none'; renderAll(); };
@@ -366,10 +399,22 @@ window.handleAddEntry = function() {
         if (editId) {
             const idx = db.entries.findIndex(e => e.id == editId);
             if(idx > -1) { 
+                const splitChanged = db.entries[idx].split !== split;
+                const valChanged = db.entries[idx].val !== valTotal;
+
                 db.entries[idx].desc = desc; db.entries[idx].val = valTotal; 
                 db.entries[idx].category = cat; db.entries[idx].date = date; db.entries[idx].split = split; 
+                
+                // Se for da casa e alterar divisão ou valor, volta pra pendente e avisa parceiro!
+                if ((splitChanged || valChanged) && db.entries[idx].type === 'home') {
+                    db.entries[idx].status = 'pending';
+                    db.entries[idx].owner = currentUser;
+                    db.entries[idx].isEdit = true;
+                    logNotification(`✏️ ${currentUser.toUpperCase()} alterou a despesa "${desc}". Aguardando aprovação!`);
+                } else {
+                    logNotification(`✏️ ${currentUser.toUpperCase()} atualizou informações simples de "${desc}".`);
+                }
             }
-            if(db.entries[idx].type === 'home') logNotification(`✏️ ${currentUser.toUpperCase()} alterou a despesa "${desc}".`);
         } else {
             const valParcela = valTotal / parcels; let [y, m, d] = date.split('-').map(Number);
             for(let i = 0; i < parcels; i++) {
@@ -379,7 +424,8 @@ window.handleAddEntry = function() {
                 db.entries.push({ 
                     id: baseId, desc: finalDesc, val: valParcela, category: cat, 
                     date: getIsoDate(newDate), split: split, owner: currentUser, type: currentView,
-                    status: currentView === 'home' ? 'pending' : 'approved' 
+                    status: currentView === 'home' ? 'pending' : 'approved',
+                    isEdit: false
                 });
 
                 if (alarmDate && alarmTime && i === 0) {
@@ -405,10 +451,19 @@ window.approveEntry = function(id) {
 window.rejectEntry = function(id) {
     const idx = db.entries.findIndex(e => e.id === id);
     if(idx > -1) {
-        db.entries[idx].type = 'personal'; 
-        db.entries[idx].status = 'approved'; 
-        logNotification(`❌ ${currentUser.toUpperCase()} recusou a despesa "${db.entries[idx].desc}". Ela foi para o painel Pessoal do criador.`);
-        saveDB(); renderAll(); showToast("❌ Despesa negada!");
+        if(db.entries[idx].isEdit) {
+            // Se era uma edição, apenas marca como recusada na casa para correção
+            db.entries[idx].status = 'rejected';
+            logNotification(`❌ ${currentUser.toUpperCase()} recusou a alteração de "${db.entries[idx].desc}".`);
+            showToast("❌ Edição recusada!");
+        } else {
+            // Nova despesa recusada vai pra conta pessoal de quem criou (como no requisito antigo)
+            db.entries[idx].type = 'personal'; 
+            db.entries[idx].status = 'approved'; 
+            logNotification(`❌ ${currentUser.toUpperCase()} recusou a nova despesa "${db.entries[idx].desc}". Ela foi para o painel Pessoal do criador.`);
+            showToast("❌ Despesa enviada para o painel Pessoal!");
+        }
+        saveDB(); renderAll(); 
     }
 };
 
@@ -455,7 +510,9 @@ function renderAll() {
     const baseMonthEntries = db.entries.filter(e => { const [y, m] = e.date.split('-'); return parseInt(y) === selY && (parseInt(m)-1) === selM && !e.isAlarm; });
 
     let viewMonthEntries = []; let totalM = 0; let totalE = 0; let debtM = 0; let debtE = 0; let personalTotal = 0;
-    const homeMonthEntries = baseMonthEntries.filter(e => e.type === 'home' && e.status !== 'pending');
+    
+    // O Balanço da casa considera APENAS as Aprovadas
+    const homeMonthEntries = baseMonthEntries.filter(e => e.type === 'home' && e.status === 'approved');
     
     homeMonthEntries.forEach(e => {
         if (e.split === 50) { totalM += (e.val/2); totalE += (e.val/2); }
@@ -480,7 +537,7 @@ function renderAll() {
         } else { balEl.innerText = "Tudo quitado!"; balEl.style.color = "var(--success)"; }
 
     } else {
-        viewMonthEntries = baseMonthEntries.filter(e => (e.type === 'home' && e.status !== 'pending') || (e.type === 'personal' && e.owner === currentUser));
+        viewMonthEntries = baseMonthEntries.filter(e => (e.type === 'home' && e.status === 'approved') || (e.type === 'personal' && e.owner === currentUser));
         viewMonthEntries.filter(e => e.type === 'personal' && e.owner === currentUser).forEach(e => personalTotal += e.val);
         document.getElementById('stat-m').innerText = `R$ ${(personalTotal).toFixed(2)}`; document.getElementById('card-esposa').style.display = 'none';
         document.getElementById('card-balance').style.display = 'none'; document.getElementById('label-marido').innerText = 'Meu Total Pessoal';
@@ -500,11 +557,21 @@ function renderAll() {
             const icon = e.type === 'home' ? '🏠' : '👤'; 
             let statusTag = ''; let actionHtml = '';
 
+            let splitTextList = "";
+            if (e.split === 50) splitTextList = "50/50";
+            else if (e.split === 100) splitTextList = `${e.owner.toUpperCase()} pagou tudo`;
+            else if (e.split === -100) splitTextList = `O outro pagou tudo`;
+            else if (e.split === 0) splitTextList = `${e.owner.toUpperCase()} assumiu`;
+
             if (e.type === 'home' && e.status === 'pending') {
-                statusTag = `<span style="font-size: 0.65rem; background: var(--danger); padding: 2px 6px; border-radius: 8px; margin-left: 5px;">Aguardando Aval</span>`;
+                statusTag = `<br><span style="font-size: 0.7rem; background: var(--danger); padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">⏳ Pendente (${splitTextList})</span>`;
                 if (e.owner !== currentUser) { actionHtml = `<button onclick="approveEntry(${e.id})" style="color:var(--success)">✅</button><button onclick="rejectEntry(${e.id})" style="color:var(--danger)">❌</button>`; } 
                 else { actionHtml = `<button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; }
+            } else if (e.type === 'home' && e.status === 'rejected') {
+                statusTag = `<br><span style="font-size: 0.7rem; background: #555; padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">❌ Recusado (${splitTextList})</span>`;
+                actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
             } else {
+                if(e.type === 'home') statusTag = `<br><span style="font-size: 0.7rem; color: var(--success); display: inline-block; margin-top: 4px;">✅ Aprovado (${splitTextList})</span>`;
                 actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
             }
             container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${e.val.toFixed(2)} - ${e.category} ${statusTag}</small></div><div class="action-btns">${actionHtml}</div></div>`; 
@@ -522,7 +589,7 @@ function drawChart(data) {
 
 setInterval(() => { const now = new Date(); const d = getIsoDate(now); const t = String(now.getHours()).padStart(2,'0') + ":" + String(now.getMinutes()).padStart(2,'0'); db.entries.forEach(e => { if(e.isAlarm && e.date === d && e.time === t && !e.triggered) { sendNotification("⏰ Lembrete!", e.desc); e.triggered = true; saveDB(); } }); }, 60000);
 
-// --- 7. OBSERVADOR DE AUTENTICAÇÃO (Sempre por último) ---
+// --- 7. OBSERVADOR DE AUTENTICAÇÃO ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
         currentFamilyId = user.uid;
@@ -533,9 +600,7 @@ onAuthStateChanged(auth, (user) => {
             window.showScreen('profile-screen');
         }
     } else {
-        currentFamilyId = null;
-        currentUser = null;
-        localStorage.removeItem('activeProfile');
+        currentFamilyId = null; currentUser = null; localStorage.removeItem('activeProfile');
         window.showScreen('login-screen');
     }
 });
