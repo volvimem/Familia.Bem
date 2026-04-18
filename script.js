@@ -18,8 +18,8 @@ const auth = getAuth(app);
 const dbFirebase = getDatabase(app);
 
 // --- ESTADOS DO APLICATIVO ---
-let currentFamilyId = null; // A ID da família é a UID da conta Auth
-let currentUser = null; // 'marido' ou 'esposa'
+let currentFamilyId = null; 
+let currentUser = null; 
 let currentView = 'home';
 let currentDate = new Date(); 
 let selectedDate = new Date(); 
@@ -27,27 +27,37 @@ const chartColors = ['#d4af37', '#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1
 
 let db = { categories: [], entries: [], feiraItems: [], notificationsLog: [], cpfs: {} };
 
-// --- OBSERVADOR DE AUTENTICAÇÃO DO FIREBASE ---
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        currentFamilyId = user.uid;
-        
-        // Verifica se a pessoa já escolheu o perfil neste aparelho antes
-        const savedProfile = localStorage.getItem('activeProfile');
-        if (savedProfile) {
-            window.selectProfile(savedProfile);
-        } else {
-            window.showScreen('profile-screen');
-        }
-    } else {
-        currentFamilyId = null;
-        currentUser = null;
-        localStorage.removeItem('activeProfile');
-        window.showScreen('login-screen');
-    }
-});
+// --- 1. FUNÇÕES DE INTERFACE (Devem carregar primeiro) ---
+window.showScreen = function(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+};
 
-// --- FUNÇÕES DE BANCO DE DADOS DA FAMÍLIA ---
+window.closeModals = function() {
+    document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+};
+
+function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.innerText = msg;
+    t.style.backgroundColor = isError ? 'var(--danger)' : 'var(--success)';
+    t.className = "show";
+    setTimeout(() => { t.className = t.className.replace("show", ""); }, 2900);
+}
+
+let pendingConfirmAction = null;
+window.showConfirmModal = function(title, msg, onConfirm) {
+    document.getElementById('confirm-title').innerText = title;
+    document.getElementById('confirm-msg').innerText = msg;
+    pendingConfirmAction = onConfirm;
+    document.getElementById('btn-confirm-action').onclick = () => {
+        if(pendingConfirmAction) pendingConfirmAction();
+        window.closeModals();
+    };
+    document.getElementById('modal-confirm').classList.add('active');
+};
+
+// --- 2. FUNÇÕES DO BANCO DE DADOS ---
 function saveDB() {
     if (currentFamilyId) set(ref(dbFirebase, 'couples/' + currentFamilyId), db);
 }
@@ -69,7 +79,11 @@ function listenToCoupleData() {
     });
 }
 
-// --- FIREBASE AUTHENTICATION (CRIAR CONTA E LOGIN) ---
+function getIsoDate(dateObj) { 
+    return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`; 
+}
+
+// --- 3. FIREBASE AUTH (LOGIN E CADASTRO) ---
 window.handleRegister = async function() {
     const email = document.getElementById('reg-email').value.trim();
     const pass = document.getElementById('reg-pass').value;
@@ -83,12 +97,10 @@ window.handleRegister = async function() {
         const userCred = await createUserWithEmailAndPassword(auth, email, pass);
         currentFamilyId = userCred.user.uid;
         
-        // Salva os CPFs como segurança no banco da família
         db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: { titular: cpf1, conjuge: cpf2 } };
         saveDB();
 
         showToast("Família cadastrada com sucesso!");
-        // O onAuthStateChanged vai direcionar automaticamente para a tela de Selecionar Perfil
     } catch(error) {
         if(error.code === 'auth/email-already-in-use') showToast("Este e-mail já está em uso!", true);
         else showToast("Erro ao registrar. Verifique o E-mail.", true);
@@ -103,7 +115,6 @@ window.attemptLogin = async function() {
 
     try {
         await signInWithEmailAndPassword(auth, email, pass);
-        // O onAuthStateChanged interceptará o sucesso e mandará para a próxima tela
     } catch(error) {
         showToast("E-mail ou senha incorretos!", true);
     }
@@ -123,18 +134,19 @@ window.handleForgotPassword = async function() {
 };
 
 window.logout = async function() {
-    showConfirmModal("Sair da Conta", "Deseja encerrar sua sessão?", async () => {
+    window.showConfirmModal("Sair da Conta", "Deseja encerrar sua sessão?", async () => {
         await signOut(auth);
     });
 };
 
-// --- SELEÇÃO DE PERFIL ---
+// --- 4. SELEÇÃO DE PERFIL ---
 window.selectProfile = function(role) {
     currentUser = role;
-    localStorage.setItem('activeProfile', role); // Salva para não perguntar de novo ao atualizar
+    localStorage.setItem('activeProfile', role); 
     document.getElementById('display-user').innerText = role;
     window.showScreen('main-screen');
     listenToCoupleData();
+    if ("Notification" in window) Notification.requestPermission().then(p => { if (p === "granted") checkTodayInstallments(); });
 };
 
 window.switchProfile = function() {
@@ -142,7 +154,7 @@ window.switchProfile = function() {
     window.showScreen('profile-screen');
 };
 
-// --- RESTANTE DO CÓDIGO (AVISOS, NAVEGAÇÃO E CRUD) ---
+// --- 5. LOG E AVISOS ---
 function sendNotification(title, body) { if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body: body, icon: 'icon-512.png' }); }
 function logNotification(text) {
     const now = new Date(); const logStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')} às ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -154,16 +166,16 @@ window.openNotifications = function() {
     const list = document.getElementById('notifications-list'); list.innerHTML = '';
     if (!db.notificationsLog || db.notificationsLog.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5;">Nenhuma atividade recente.</p>';
     else db.notificationsLog.forEach(log => { list.innerHTML += `<div class="log-item"><span class="log-time">${log.time}</span>${log.text}</div>`; });
+    window.showScreen('modal-notifications'); // Hack for opening modal correctly if using showScreen
     document.getElementById('modal-notifications').classList.add('active');
 };
 
-function showToast(msg, isError = false) { const t = document.getElementById('toast'); t.innerText = msg; t.style.backgroundColor = isError ? 'var(--danger)' : 'var(--success)'; t.className = "show"; setTimeout(() => { t.className = t.className.replace("show", ""); }, 2900); }
-let pendingConfirmAction = null;
-function showConfirmModal(title, msg, onConfirm) { document.getElementById('confirm-title').innerText = title; document.getElementById('confirm-msg').innerText = msg; pendingConfirmAction = onConfirm; document.getElementById('btn-confirm-action').onclick = () => { if(pendingConfirmAction) pendingConfirmAction(); window.closeModals(); }; document.getElementById('modal-confirm').classList.add('active'); }
-window.closeModals = function() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('active')); };
-window.showScreen = function(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); };
-function getIsoDate(dateObj) { return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`; }
+function checkTodayInstallments() {
+    const todayStr = getIsoDate(new Date()); const dueToday = db.entries.filter(e => e.date === todayStr && e.desc.includes('/') && e.type === 'home');
+    dueToday.forEach(e => { sendNotification("💸 Parcela Vencendo Hoje!", `${e.desc} - Valor: R$ ${e.val.toFixed(2)}`); });
+}
 
+// --- 6. NAVEGAÇÃO E CRUD ---
 window.setTab = function(tab) { currentView = tab; document.getElementById('tab-home').classList.toggle('active', tab === 'home'); document.getElementById('tab-personal').classList.toggle('active', tab === 'personal'); document.getElementById('split-options').style.display = tab === 'home' ? 'block' : 'none'; renderAll(); };
 window.changeMonth = function(dir) { currentDate.setMonth(currentDate.getMonth() + dir); renderAll(); };
 window.selectDay = function(y, m, d) { selectedDate = new Date(y, m, d); renderAll(); };
@@ -216,11 +228,11 @@ window.handleAddEntry = function() {
         }
         saveDB(); showToast("Salvo!"); window.closeModals();
     };
-    if (editId) showConfirmModal("Confirmar Alteração", "Deseja salvar as mudanças neste registro?", saveAction); else saveAction();
+    if (editId) window.showConfirmModal("Confirmar Alteração", "Deseja salvar as mudanças neste registro?", saveAction); else saveAction();
 };
 
 window.editEntry = function(id) { const e = db.entries.find(x => x.id === id); document.getElementById('edit-id').value = e.id; document.getElementById('form-title').innerText = "Editar Registro"; document.getElementById('exp-desc').value = e.desc; document.getElementById('exp-val').value = e.val; document.getElementById('exp-cat').value = e.category; document.getElementById('exp-date').value = e.date; document.getElementById('exp-split').value = e.split; document.getElementById('parcelas-container').style.display = 'none'; document.getElementById('modal-add').classList.add('active'); };
-window.deleteEntry = function(id) { showConfirmModal("Excluir", "Tem certeza que deseja apagar este registro?", () => { const e = db.entries.find(x => x.id === id); if(e && e.type === 'home') logNotification(`🗑 ${currentUser.toUpperCase()} apagou a despesa "${e.desc}".`); db.entries = db.entries.filter(x => x.id !== id); saveDB(); showToast("Removido!"); }); };
+window.deleteEntry = function(id) { window.showConfirmModal("Excluir", "Tem certeza que deseja apagar este registro?", () => { const e = db.entries.find(x => x.id === id); if(e && e.type === 'home') logNotification(`🗑 ${currentUser.toUpperCase()} apagou a despesa "${e.desc}".`); db.entries = db.entries.filter(x => x.id !== id); saveDB(); showToast("Removido!"); }); };
 
 window.openAlarmModal = function() { document.getElementById('modal-alarm').classList.add('active'); };
 window.handleSaveAlarm = function() { const desc = document.getElementById('alarm-desc').value; const date = document.getElementById('alarm-date').value; const time = document.getElementById('alarm-time').value; if(!desc || !date || !time) return showToast("Preencha todos os campos do alarme!", true); db.entries.push({ id: Date.now(), isAlarm: true, desc: "⏰ " + desc, date, time, owner: currentUser, type: currentView }); saveDB(); window.closeModals(); showToast("Alarme Agendado!"); };
@@ -231,7 +243,7 @@ window.handleSaveFeiraItem = function() {
     const id = document.getElementById('feira-edit-id').value; const name = document.getElementById('feira-item-name').value; const val = parseFloat(document.getElementById('feira-item-val').value); const qtd = parseFloat(document.getElementById('feira-item-qtd').value);
     if(isNaN(val)) return showToast("Preencha o valor unitário!", true);
     const save = () => { if(id) { const idx = db.feiraItems.findIndex(i => i.id == id); db.feiraItems[idx] = { id, name, val, qtd }; } else { db.feiraItems.push({ id: Date.now(), name, val, qtd }); } saveDB(); renderFeira(); window.closeModals(); showToast("Item Salvo!"); };
-    if(id) showConfirmModal("Editar Item", "Deseja alterar este item do carrinho?", save); else save();
+    if(id) window.showConfirmModal("Editar Item", "Deseja alterar este item do carrinho?", save); else save();
 };
 function renderFeira() {
     const list = document.getElementById('feira-list-container'); list.innerHTML = ''; let total = 0;
@@ -239,7 +251,7 @@ function renderFeira() {
     db.feiraItems.forEach(i => { total += (i.val * i.qtd); list.innerHTML += `<div class="expense-item" style="border-left-color: var(--success);"><div class="expense-info"><strong>${i.name}</strong><small>${i.qtd}x R$ ${i.val.toFixed(2)}</small></div><div class="action-btns"><button onclick="deleteFeiraItem(${i.id})" style="color:var(--danger)">🗑</button></div></div>`; });
     document.getElementById('feira-total-val').innerText = total.toFixed(2);
 }
-window.deleteFeiraItem = function(id) { showConfirmModal("Remover", "Tirar item do carrinho?", () => { db.feiraItems = db.feiraItems.filter(i => i.id !== id); saveDB(); renderFeira(); }); }; window.clearFeira = function() { showConfirmModal("Limpar Tudo", "Deseja esvaziar o carrinho?", () => { db.feiraItems = []; saveDB(); renderFeira(); }); };
+window.deleteFeiraItem = function(id) { window.showConfirmModal("Remover", "Tirar item do carrinho?", () => { db.feiraItems = db.feiraItems.filter(i => i.id !== id); saveDB(); renderFeira(); }); }; window.clearFeira = function() { window.showConfirmModal("Limpar Tudo", "Deseja esvaziar o carrinho?", () => { db.feiraItems = []; saveDB(); renderFeira(); }); };
 
 function renderAll() {
     renderCalendar();
@@ -288,3 +300,26 @@ function drawChart(data) {
 }
 
 setInterval(() => { const now = new Date(); const d = getIsoDate(now); const t = String(now.getHours()).padStart(2,'0') + ":" + String(now.getMinutes()).padStart(2,'0'); db.entries.forEach(e => { if(e.isAlarm && e.date === d && e.time === t && !e.triggered) { sendNotification("⏰ Lembrete!", e.desc); e.triggered = true; saveDB(); } }); }, 60000);
+
+// --- 7. OBSERVADOR DE AUTENTICAÇÃO (Sempre por último) ---
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        currentFamilyId = user.uid;
+        const savedProfile = localStorage.getItem('activeProfile');
+        if (savedProfile) {
+            window.selectProfile(savedProfile);
+        } else {
+            window.showScreen('profile-screen');
+        }
+    } else {
+        currentFamilyId = null;
+        currentUser = null;
+        localStorage.removeItem('activeProfile');
+        window.showScreen('login-screen');
+    }
+});
+
+// PWA: Instalação
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
+let deferredPrompt; window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; const btn = document.getElementById('btn-install'); if(btn) btn.style.display = 'inline-block'; });
+window.installApp = function() { if(deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; document.getElementById('btn-install').style.display = 'none'; }); } };
