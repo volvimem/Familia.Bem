@@ -88,7 +88,7 @@ function listenToCoupleData() {
         }
         updateCategorySelect(); 
         renderAll();
-        checkForPendingApprovals(); // Verifica se precisa abrir o popup
+        checkForPendingApprovals(); // Verifica se precisa abrir o popup na tela
     });
 }
 
@@ -405,12 +405,15 @@ window.handleAddEntry = function() {
                 db.entries[idx].desc = desc; db.entries[idx].val = valTotal; 
                 db.entries[idx].category = cat; db.entries[idx].date = date; db.entries[idx].split = split; 
                 
-                // Se for da casa e alterar divisão ou valor, volta pra pendente e avisa parceiro!
+                // Se for da casa e alterar divisão ou valor, volta pra pendente com o MESMO alerta de um lançamento novo
                 if ((splitChanged || valChanged) && db.entries[idx].type === 'home') {
                     db.entries[idx].status = 'pending';
                     db.entries[idx].owner = currentUser;
                     db.entries[idx].isEdit = true;
-                    logNotification(`✏️ ${currentUser.toUpperCase()} alterou a despesa "${desc}". Aguardando aprovação!`);
+                    
+                    const msg = `🏠 ${currentUser.toUpperCase()} alterou: ${desc} (Aguardando Aprovação)`;
+                    sendNotification("Despesa Pendente", msg);
+                    logNotification(msg);
                 } else {
                     logNotification(`✏️ ${currentUser.toUpperCase()} atualizou informações simples de "${desc}".`);
                 }
@@ -432,7 +435,11 @@ window.handleAddEntry = function() {
                     db.entries.push({ id: baseId + 1000, isAlarm: true, desc: "⏰ Pagar: " + finalDesc, date: alarmDate, time: alarmTime, owner: currentUser, type: currentView });
                 }
             }
-            if (currentView === 'home') { const msg = `🏠 ${currentUser.toUpperCase()} lançou: ${desc} (Aguardando Aprovação)`; sendNotification("Despesa Pendente", msg); logNotification(msg); }
+            if (currentView === 'home') { 
+                const msg = `🏠 ${currentUser.toUpperCase()} lançou: ${desc} (Aguardando Aprovação)`; 
+                sendNotification("Despesa Pendente", msg); 
+                logNotification(msg); 
+            }
         }
         saveDB(); showToast("✅ Salvo com sucesso!"); window.closeModals();
     };
@@ -452,12 +459,10 @@ window.rejectEntry = function(id) {
     const idx = db.entries.findIndex(e => e.id === id);
     if(idx > -1) {
         if(db.entries[idx].isEdit) {
-            // Se era uma edição, apenas marca como recusada na casa para correção
             db.entries[idx].status = 'rejected';
             logNotification(`❌ ${currentUser.toUpperCase()} recusou a alteração de "${db.entries[idx].desc}".`);
             showToast("❌ Edição recusada!");
         } else {
-            // Nova despesa recusada vai pra conta pessoal de quem criou (como no requisito antigo)
             db.entries[idx].type = 'personal'; 
             db.entries[idx].status = 'approved'; 
             logNotification(`❌ ${currentUser.toUpperCase()} recusou a nova despesa "${db.entries[idx].desc}". Ela foi para o painel Pessoal do criador.`);
@@ -510,9 +515,7 @@ function renderAll() {
     const baseMonthEntries = db.entries.filter(e => { const [y, m] = e.date.split('-'); return parseInt(y) === selY && (parseInt(m)-1) === selM && !e.isAlarm; });
 
     let viewMonthEntries = []; let totalM = 0; let totalE = 0; let debtM = 0; let debtE = 0; let personalTotal = 0;
-    
-    // O Balanço da casa considera APENAS as Aprovadas
-    const homeMonthEntries = baseMonthEntries.filter(e => e.type === 'home' && e.status === 'approved');
+    const homeMonthEntries = baseMonthEntries.filter(e => e.type === 'home' && e.status !== 'pending');
     
     homeMonthEntries.forEach(e => {
         if (e.split === 50) { totalM += (e.val/2); totalE += (e.val/2); }
