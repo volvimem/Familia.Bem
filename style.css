@@ -1,1 +1,88 @@
+/* --- ESTILOS PREMIUM --- */
+:root {
+    --bg-gradient: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --primary-gold: #d4af37;
+    --text-light: #f5f5f5;
+    --danger: #ff4757;
+    --success: #2ed573;
+    --info: #3498db;
+}
 
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+body { background: var(--bg-gradient); color: var(--text-light); min-height: 100vh; padding: 15px; padding-bottom: 80px; }
+
+.glass {
+    background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border); border-radius: 20px; padding: 20px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.screen { display: none; max-width: 500px; margin: auto; animation: fadeIn 0.4s ease; }
+.screen.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+h1, h2, h3, h4 { color: var(--primary-gold); text-align: center; margin-bottom: 15px; }
+
+input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: none; outline: none; font-size: 1rem; }
+input, select { background: rgba(255,255,255,0.08); color: white; border: 1px solid var(--glass-border); color-scheme: dark; }
+select option { color: #111; background: #fff; }
+
+button { background: var(--primary-gold); color: #111; font-weight: bold; cursor: pointer; transition: 0.3s; }
+.btn-outline { background: transparent; border: 1px solid var(--primary-gold); color: var(--primary-gold); }
+.link-text { color: var(--primary-gold); font-size: 0.85rem; cursor: pointer; display: block; margin-top: 15px; text-align: center; text-decoration: underline; }
+
+/* Tabs e Ferramentas */
+.tabs { display: flex; gap: 10px; margin-bottom: 10px; }
+.tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; border-bottom: 2px solid transparent; opacity: 0.5; }
+.tab.active { border-color: var(--primary-gold); opacity: 1; color: var(--primary-gold); font-weight: bold; }
+
+.tools-row { display: flex; gap: 10px; margin-bottom: 15px; }
+.tool-btn { flex: 1; background: rgba(255,255,255,0.1); color: var(--text-light); font-size: 0.85rem; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; }
+
+/* Resumo e Lista */
+.section-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; color: var(--primary-gold); margin-bottom: 10px; text-align: center; }
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+.card { padding: 10px; text-align: center; font-size: 0.85rem; }
+.card strong { display: block; font-size: 1.1rem; color: var(--primary-gold); }
+
+.expense-item { 
+    background: rgba(0,0,0,0.3); padding: 12px; border-radius: 12px; margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary-gold);
+}
+.expense-info small { display: block; opacity: 0.7; font-size: 0.75rem; margin-top: 4px; }
+.action-btns { display: flex; gap: 5px; }
+.action-btns button { width: 35px; height: 35px; padding: 0; display: flex; justify-content: center; align-items: center; border-radius: 8px; font-size: 1.1rem; background: rgba(255,255,255,0.1); border: none; }
+
+/* Calendário */
+.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.calendar-header button { width: auto; padding: 5px 15px; background: rgba(255,255,255,0.1); color: white; border-radius: 8px; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; font-size: 0.85rem; }
+.day-name { font-weight: bold; color: var(--primary-gold); padding-bottom: 5px; }
+.cal-day { padding: 8px 0; border-radius: 8px; cursor: pointer; background: rgba(0,0,0,0.2); transition: 0.2s; position: relative; }
+.cal-day.active { background: var(--primary-gold); color: #111; font-weight: bold; }
+.has-event::after { content: ''; width: 6px; height: 6px; background: var(--danger); border-radius: 50%; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); }
+
+/* FAB (+) */
+.fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: var(--primary-gold); color: #111; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); cursor: pointer; z-index: 100; }
+
+/* Modal e Toast */
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; justify-content: center; align-items: center; padding: 15px; }
+.modal.active { display: flex; }
+.modal-content { max-width: 400px; width: 100%; max-height: 90vh; overflow-y: auto; text-align: center; }
+.flex-row { display: flex; gap: 10px; align-items: center; justify-content: center; }
+.flex-row button { width: auto; padding: 12px 15px; flex: 1; }
+
+#toast { visibility: hidden; min-width: 250px; background-color: var(--success); color: #fff; text-align: center; border-radius: 12px; padding: 15px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); }
+#toast.show { visibility: visible; animation: fadein 0.4s, fadeout 0.4s 2.5s; }
+@keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+@keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+/* Tela de Feira */
+.feira-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.feira-total-display { font-size: 2.5rem; color: var(--success); text-align: center; margin: 20px 0; font-weight: bold; }
+
+/* Histórico */
+.log-item { background: rgba(255,255,255,0.05); padding: 10px; margin-bottom: 8px; border-radius: 8px; border-left: 3px solid var(--info); }
+.log-time { font-size: 0.7rem; color: #aaa; display: block; margin-bottom: 3px; }
