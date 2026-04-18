@@ -1,6 +1,7 @@
-// --- IMPORTAÇÃO DOS MÓDULOS DO FIREBASE V10 ---
+// --- IMPORTAÇÃO DOS MÓDULOS DO FIREBASE AUTH E DATABASE V10 ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDlb1GCYz9ztCSPnKxit7Puzk2SYrHjFOY",
@@ -13,38 +14,40 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const dbFirebase = getDatabase(app);
 
 // --- ESTADOS DO APLICATIVO ---
-let currentCpf = localStorage.getItem('loggedCpf') || null;
-let currentUser = null; 
-let currentFamilyId = null;
+let currentFamilyId = null; // A ID da família é a UID da conta Auth
+let currentUser = null; // 'marido' ou 'esposa'
 let currentView = 'home';
 let currentDate = new Date(); 
 let selectedDate = new Date(); 
 const chartColors = ['#d4af37', '#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1c40f', '#1abc9c'];
 
-let db = { categories: [], entries: [], feiraItems: [], notificationsLog: [] };
+let db = { categories: [], entries: [], feiraItems: [], notificationsLog: [], cpfs: {} };
 
-// --- AUTO LOGIN ---
-window.onload = async () => {
-    if (currentCpf) {
-        const userSnapshot = await get(ref(dbFirebase, `users/${currentCpf}`));
-        if(userSnapshot.exists()) {
-            const userData = userSnapshot.val();
-            currentUser = userData.role;
-            currentFamilyId = userData.familyId;
-            document.getElementById('display-user').innerText = currentUser;
-            window.showScreen('main-screen');
-            listenToCoupleData();
+// --- OBSERVADOR DE AUTENTICAÇÃO DO FIREBASE ---
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        currentFamilyId = user.uid;
+        
+        // Verifica se a pessoa já escolheu o perfil neste aparelho antes
+        const savedProfile = localStorage.getItem('activeProfile');
+        if (savedProfile) {
+            window.selectProfile(savedProfile);
         } else {
-            localStorage.removeItem('loggedCpf');
-            currentCpf = null;
+            window.showScreen('profile-screen');
         }
+    } else {
+        currentFamilyId = null;
+        currentUser = null;
+        localStorage.removeItem('activeProfile');
+        window.showScreen('login-screen');
     }
-};
+});
 
-// --- FUNÇÕES DE BANCO DE DADOS ---
+// --- FUNÇÕES DE BANCO DE DADOS DA FAMÍLIA ---
 function saveDB() {
     if (currentFamilyId) set(ref(dbFirebase, 'couples/' + currentFamilyId), db);
 }
@@ -59,118 +62,87 @@ function listenToCoupleData() {
             if (!db.feiraItems) db.feiraItems = [];
             if (!db.notificationsLog) db.notificationsLog = [];
         } else {
-            db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [] };
+            db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: {} };
             saveDB();
         }
         updateCategorySelect(); renderAll();
     });
 }
 
-// --- PWA: INSTALAÇÃO ---
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-}
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; const btn = document.getElementById('btn-install'); if(btn) btn.style.display = 'inline-block'; });
-window.installApp = function() { if(deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; document.getElementById('btn-install').style.display = 'none'; }); } }
-
-// --- LOGIN MULTIUSUÁRIO CUSTOMIZADO ---
+// --- FIREBASE AUTHENTICATION (CRIAR CONTA E LOGIN) ---
 window.handleRegister = async function() {
-    const role = document.getElementById('reg-role').value;
-    const cpf = document.getElementById('reg-cpf').value.replace(/\D/g, '');
-    const partnerCpf = document.getElementById('reg-partner-cpf').value.replace(/\D/g, '');
+    const email = document.getElementById('reg-email').value.trim();
     const pass = document.getElementById('reg-pass').value;
-    const phrase = document.getElementById('reg-phrase').value;
+    const cpf1 = document.getElementById('reg-cpf-1').value.replace(/\D/g, '');
+    const cpf2 = document.getElementById('reg-cpf-2').value.replace(/\D/g, '');
 
-    if(!cpf || !partnerCpf || !pass || !phrase) return showToast("Preencha todos os campos!", true);
+    if(!email || !pass || !cpf1 || !cpf2) return showToast("Preencha todos os campos!", true);
     if(pass.length < 6) return showToast("A senha precisa ter no mínimo 6 caracteres.", true);
 
-    const familyId = [cpf, partnerCpf].sort().join('_'); 
-
-    const userRef = ref(dbFirebase, `users/${cpf}`);
-    const snapshot = await get(userRef);
-    
-    if (snapshot.exists()) {
-        return showToast("CPF já cadastrado!", true);
-    }
-
     try {
-        await set(userRef, { role: role, password: pass, securityPhrase: phrase, familyId: familyId });
-        showToast("Cadastro realizado! Faça seu login.");
-        window.showScreen('login-screen');
+        const userCred = await createUserWithEmailAndPassword(auth, email, pass);
+        currentFamilyId = userCred.user.uid;
+        
+        // Salva os CPFs como segurança no banco da família
+        db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: { titular: cpf1, conjuge: cpf2 } };
+        saveDB();
+
+        showToast("Família cadastrada com sucesso!");
+        // O onAuthStateChanged vai direcionar automaticamente para a tela de Selecionar Perfil
     } catch(error) {
-        showToast("Erro ao registrar no banco de dados.", true);
+        if(error.code === 'auth/email-already-in-use') showToast("Este e-mail já está em uso!", true);
+        else showToast("Erro ao registrar. Verifique o E-mail.", true);
     }
 };
 
 window.attemptLogin = async function() {
-    const cpf = document.getElementById('login-cpf').value.replace(/\D/g, ''); 
+    const email = document.getElementById('login-email').value.trim();
     const pass = document.getElementById('login-pass').value;
 
-    if(!cpf || !pass) return showToast("Preencha CPF e Senha!", true);
+    if(!email || !pass) return showToast("Preencha E-mail e Senha!", true);
 
     try {
-        const userSnapshot = await get(ref(dbFirebase, `users/${cpf}`));
-        if(userSnapshot.exists()) {
-            const userData = userSnapshot.val();
-            if(userData.password === pass) {
-                currentCpf = cpf;
-                currentUser = userData.role;
-                currentFamilyId = userData.familyId;
-                
-                // Salva sessão localmente para não deslogar ao atualizar página
-                localStorage.setItem('loggedCpf', cpf);
-
-                document.getElementById('display-user').innerText = currentUser;
-                window.showScreen('main-screen');
-                listenToCoupleData(); 
-
-                if ("Notification" in window) Notification.requestPermission().then(p => { if (p === "granted") checkTodayInstallments(); });
-            } else {
-                showToast("Senha incorreta!", true);
-            }
-        } else {
-            showToast("CPF não encontrado.", true);
-        }
+        await signInWithEmailAndPassword(auth, email, pass);
+        // O onAuthStateChanged interceptará o sucesso e mandará para a próxima tela
     } catch(error) {
-        showToast("Erro ao conectar.", true);
+        showToast("E-mail ou senha incorretos!", true);
     }
 };
 
 window.handleForgotPassword = async function() {
-    const cpf = document.getElementById('forgot-cpf').value.replace(/\D/g, '');
-    const phrase = document.getElementById('forgot-phrase').value;
-    const newPass = document.getElementById('forgot-new-pass').value;
+    const email = document.getElementById('forgot-email').value.trim();
+    if(!email) return showToast("Digite o e-mail da conta!", true);
 
-    if(!cpf || !phrase || !newPass) return showToast("Preencha todos os campos!", true);
-    if(newPass.length < 6) return showToast("A nova senha precisa ter no mínimo 6 caracteres.", true);
-
-    const userRef = ref(dbFirebase, `users/${cpf}`);
-    const snapshot = await get(userRef);
-
-    if(snapshot.exists()) {
-        const userData = snapshot.val();
-        if(userData.securityPhrase.toLowerCase() === phrase.toLowerCase()) {
-            await update(userRef, { password: newPass });
-            showToast("Senha alterada com sucesso! Faça seu login.");
-            window.showScreen('login-screen');
-        } else {
-            showToast("Frase de segurança incorreta!", true);
-        }
-    } else {
-        showToast("CPF não encontrado!", true);
+    try {
+        await sendPasswordResetEmail(auth, email);
+        showToast("Link de recuperação enviado para o seu E-mail!");
+        window.showScreen('login-screen');
+    } catch(error) {
+        showToast("Erro ao enviar. Verifique o E-mail digitado.", true);
     }
 };
 
-window.logout = function() {
-    showConfirmModal("Sair da Conta", "Deseja encerrar sua sessão?", () => {
-        localStorage.removeItem('loggedCpf');
-        currentCpf = null; currentUser = null; currentFamilyId = null;
-        window.showScreen('login-screen');
+window.logout = async function() {
+    showConfirmModal("Sair da Conta", "Deseja encerrar sua sessão?", async () => {
+        await signOut(auth);
     });
 };
 
-// --- SISTEMA DE AVISOS, NAVEGAÇÃO E CRUD ---
+// --- SELEÇÃO DE PERFIL ---
+window.selectProfile = function(role) {
+    currentUser = role;
+    localStorage.setItem('activeProfile', role); // Salva para não perguntar de novo ao atualizar
+    document.getElementById('display-user').innerText = role;
+    window.showScreen('main-screen');
+    listenToCoupleData();
+};
+
+window.switchProfile = function() {
+    localStorage.removeItem('activeProfile');
+    window.showScreen('profile-screen');
+};
+
+// --- RESTANTE DO CÓDIGO (AVISOS, NAVEGAÇÃO E CRUD) ---
 function sendNotification(title, body) { if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body: body, icon: 'icon-512.png' }); }
 function logNotification(text) {
     const now = new Date(); const logStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')} às ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -184,11 +156,6 @@ window.openNotifications = function() {
     else db.notificationsLog.forEach(log => { list.innerHTML += `<div class="log-item"><span class="log-time">${log.time}</span>${log.text}</div>`; });
     document.getElementById('modal-notifications').classList.add('active');
 };
-
-function checkTodayInstallments() {
-    const todayStr = getIsoDate(new Date()); const dueToday = db.entries.filter(e => e.date === todayStr && e.desc.includes('/') && e.type === 'home');
-    dueToday.forEach(e => { sendNotification("💸 Parcela Vencendo Hoje!", `${e.desc} - Valor: R$ ${e.val.toFixed(2)}`); });
-}
 
 function showToast(msg, isError = false) { const t = document.getElementById('toast'); t.innerText = msg; t.style.backgroundColor = isError ? 'var(--danger)' : 'var(--success)'; t.className = "show"; setTimeout(() => { t.className = t.className.replace("show", ""); }, 2900); }
 let pendingConfirmAction = null;
