@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanças Premium v8.0</title>
+    <title>Finanças Premium v8.1</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
     <meta name="theme-color" content="#0f0c29">
@@ -13,23 +13,35 @@
     <div id="toast">Ação realizada com sucesso!</div>
 
     <div id="login-screen" class="screen glass active">
-        <h1>Login da Família</h1>
-        <input type="text" id="login-cpf" placeholder="CPF do Casal (somente números)">
-        <select id="login-role">
-            <option value="marido">Entrar como Marido</option>
-            <option value="esposa">Entrar como Esposa</option>
-        </select>
-        <input type="password" id="login-pass" placeholder="Senha">
+        <h1>Login</h1>
+        <input type="text" id="login-cpf" placeholder="Seu CPF (somente números)">
+        <input type="password" id="login-pass" placeholder="Sua Senha">
         <button onclick="attemptLogin()">Entrar</button>
-        <span class="link-text" onclick="showScreen('register-screen')">Cadastrar nossa Família</span>
+        <span class="link-text" onclick="showScreen('forgot-screen')" style="margin-top: 5px;">Esqueci minha senha</span>
+        <span class="link-text" onclick="showScreen('register-screen')">Meu Primeiro Acesso</span>
     </div>
 
     <div id="register-screen" class="screen glass">
-        <h1>Criar Conta</h1>
-        <p style="text-align: center; font-size: 0.8rem; margin-bottom: 15px; opacity: 0.8;">Use um CPF para ser o acesso do casal.</p>
-        <input type="text" id="reg-cpf" placeholder="CPF (somente números)">
-        <input type="password" id="reg-pass" placeholder="Crie uma senha (mínimo 6 dígitos)">
-        <button onclick="handleRegister()">Registrar Casal</button>
+        <h1>Primeiro Acesso</h1>
+        <select id="reg-role">
+            <option value="marido">Sou o Marido</option>
+            <option value="esposa">Sou a Esposa</option>
+        </select>
+        <input type="text" id="reg-cpf" placeholder="Meu CPF (somente números)">
+        <input type="text" id="reg-partner-cpf" placeholder="CPF do Parceiro(a) - Para vincular">
+        <input type="password" id="reg-pass" placeholder="Crie uma senha (mín. 6 dígitos)">
+        <input type="text" id="reg-phrase" placeholder="Frase de Segurança (Ex: Nome do 1º pet)">
+        <button onclick="handleRegister()">Salvar Meu Cadastro</button>
+        <span class="link-text" onclick="showScreen('login-screen')">Voltar para Login</span>
+    </div>
+
+    <div id="forgot-screen" class="screen glass">
+        <h1>Recuperar Senha</h1>
+        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">Informe seus dados para validar sua identidade.</p>
+        <input type="text" id="forgot-cpf" placeholder="Seu CPF">
+        <input type="text" id="forgot-phrase" placeholder="Sua Frase de Segurança">
+        <input type="password" id="forgot-new-pass" placeholder="Nova Senha">
+        <button onclick="handleForgotPassword()">Alterar Senha</button>
         <span class="link-text" onclick="showScreen('login-screen')">Voltar para Login</span>
     </div>
 
