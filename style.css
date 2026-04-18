@@ -1,4 +1,4 @@
-/* --- ESTILOS PREMIUM --- */
+/* --- ESTILOS PREMIUM E ANIMAÇÕES DE CLIQUE --- */
 :root {
     --bg-gradient: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
     --glass-bg: rgba(255, 255, 255, 0.05);
@@ -29,17 +29,33 @@ input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius
 input, select { background: rgba(255,255,255,0.08); color: white; border: 1px solid var(--glass-border); color-scheme: dark; }
 select option { color: #111; background: #fff; }
 
-button { background: var(--primary-gold); color: #111; font-weight: bold; cursor: pointer; transition: 0.3s; }
+/* -------------------------------------------------------------
+   SISTEMA UNIVERSAL DE EFEITO DE CLIQUE EM BOTOES E ICONES
+------------------------------------------------------------- */
+button, .btn-outline, .tool-btn, .tab, .fab, .action-btns button, .cal-day, .link-text, .profile-btn {
+    cursor: pointer;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent; /* Remove borda azul no celular */
+}
+
+/* O pulinho e mudança de cor ao apertar QUALQUER coisa */
+button:active, .btn-outline:active, .tool-btn:active, .tab:active, .fab:active, .action-btns button:active, .cal-day:active, .link-text:active, .profile-btn:active {
+    transform: scale(0.92) !important;
+    opacity: 0.7;
+}
+
+button { background: var(--primary-gold); color: #111; font-weight: bold; }
 .btn-outline { background: transparent; border: 1px solid var(--primary-gold); color: var(--primary-gold); }
-.link-text { color: var(--primary-gold); font-size: 0.85rem; cursor: pointer; display: block; margin-top: 15px; text-align: center; text-decoration: underline; }
+.link-text { color: var(--primary-gold); font-size: 0.85rem; display: block; margin-top: 15px; text-align: center; text-decoration: underline; }
+.profile-btn { background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--glass-border); border-radius: 15px; padding: 30px 10px; font-size: 1.2rem; flex: 1; }
 
 /* Tabs e Ferramentas */
 .tabs { display: flex; gap: 10px; margin-bottom: 10px; }
-.tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; border-bottom: 2px solid transparent; opacity: 0.5; }
+.tab { flex: 1; padding: 10px; text-align: center; border-bottom: 2px solid transparent; opacity: 0.5; }
 .tab.active { border-color: var(--primary-gold); opacity: 1; color: var(--primary-gold); font-weight: bold; }
 
 .tools-row { display: flex; gap: 10px; margin-bottom: 15px; }
-.tool-btn { flex: 1; background: rgba(255,255,255,0.1); color: var(--text-light); font-size: 0.85rem; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.tool-btn { flex: 1; background: rgba(255,255,255,0.1); color: var(--text-light); font-size: 0.85rem; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; border-radius: 12px;}
 
 /* Resumo e Lista */
 .section-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; color: var(--primary-gold); margin-bottom: 10px; text-align: center; }
@@ -60,12 +76,12 @@ button { background: var(--primary-gold); color: #111; font-weight: bold; cursor
 .calendar-header button { width: auto; padding: 5px 15px; background: rgba(255,255,255,0.1); color: white; border-radius: 8px; }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; font-size: 0.85rem; }
 .day-name { font-weight: bold; color: var(--primary-gold); padding-bottom: 5px; }
-.cal-day { padding: 8px 0; border-radius: 8px; cursor: pointer; background: rgba(0,0,0,0.2); transition: 0.2s; position: relative; }
+.cal-day { padding: 8px 0; border-radius: 8px; background: rgba(0,0,0,0.2); position: relative; }
 .cal-day.active { background: var(--primary-gold); color: #111; font-weight: bold; }
 .has-event::after { content: ''; width: 6px; height: 6px; background: var(--danger); border-radius: 50%; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); }
 
 /* FAB (+) */
-.fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: var(--primary-gold); color: #111; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); cursor: pointer; z-index: 100; }
+.fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: var(--primary-gold); color: #111; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 100; }
 
 /* Modal e Toast */
 .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; justify-content: center; align-items: center; padding: 15px; }
