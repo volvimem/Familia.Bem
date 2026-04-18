@@ -1,7 +1,6 @@
 // --- IMPORTAÇÃO DOS MÓDULOS DO FIREBASE V10 ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
-import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDlb1GCYz9ztCSPnKxit7Puzk2SYrHjFOY",
@@ -14,11 +13,10 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const dbFirebase = getDatabase(app);
 
 // --- ESTADOS DO APLICATIVO ---
-let currentUid = null;
+let currentCpf = localStorage.getItem('loggedCpf') || null;
 let currentUser = null; 
 let currentFamilyId = null;
 let currentView = 'home';
@@ -27,6 +25,24 @@ let selectedDate = new Date();
 const chartColors = ['#d4af37', '#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1c40f', '#1abc9c'];
 
 let db = { categories: [], entries: [], feiraItems: [], notificationsLog: [] };
+
+// --- AUTO LOGIN ---
+window.onload = async () => {
+    if (currentCpf) {
+        const userSnapshot = await get(ref(dbFirebase, `users/${currentCpf}`));
+        if(userSnapshot.exists()) {
+            const userData = userSnapshot.val();
+            currentUser = userData.role;
+            currentFamilyId = userData.familyId;
+            document.getElementById('display-user').innerText = currentUser;
+            window.showScreen('main-screen');
+            listenToCoupleData();
+        } else {
+            localStorage.removeItem('loggedCpf');
+            currentCpf = null;
+        }
+    }
+};
 
 // --- FUNÇÕES DE BANCO DE DADOS ---
 function saveDB() {
@@ -58,7 +74,7 @@ let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; const btn = document.getElementById('btn-install'); if(btn) btn.style.display = 'inline-block'; });
 window.installApp = function() { if(deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; document.getElementById('btn-install').style.display = 'none'; }); } }
 
-// --- LOGIN MULTIUSUÁRIO (VÍNCULO DE CPF) ---
+// --- LOGIN MULTIUSUÁRIO CUSTOMIZADO ---
 window.handleRegister = async function() {
     const role = document.getElementById('reg-role').value;
     const cpf = document.getElementById('reg-cpf').value.replace(/\D/g, '');
@@ -69,23 +85,21 @@ window.handleRegister = async function() {
     if(!cpf || !partnerCpf || !pass || !phrase) return showToast("Preencha todos os campos!", true);
     if(pass.length < 6) return showToast("A senha precisa ter no mínimo 6 caracteres.", true);
 
-    const email = `${cpf}@familiabem.com`;
-    // Cria um ID único para a família combinando e ordenando os dois CPFs
     const familyId = [cpf, partnerCpf].sort().join('_'); 
 
+    const userRef = ref(dbFirebase, `users/${cpf}`);
+    const snapshot = await get(userRef);
+    
+    if (snapshot.exists()) {
+        return showToast("CPF já cadastrado!", true);
+    }
+
     try {
-        const userCred = await createUserWithEmailAndPassword(auth, email, pass);
-        const uid = userCred.user.uid;
-
-        // Salva o perfil individual
-        await set(ref(dbFirebase, `users/${uid}`), { role: role, familyId: familyId, securityPhrase: phrase });
-
+        await set(userRef, { role: role, password: pass, securityPhrase: phrase, familyId: familyId });
         showToast("Cadastro realizado! Faça seu login.");
         window.showScreen('login-screen');
-        await signOut(auth); // Desloga para forçar ele a entrar pela tela inicial
     } catch(error) {
-        if(error.code === 'auth/email-already-in-use') showToast("CPF já cadastrado!", true);
-        else showToast("Erro ao registrar. Tente novamente.", true);
+        showToast("Erro ao registrar no banco de dados.", true);
     }
 };
 
@@ -94,43 +108,64 @@ window.attemptLogin = async function() {
     const pass = document.getElementById('login-pass').value;
 
     if(!cpf || !pass) return showToast("Preencha CPF e Senha!", true);
-    const email = `${cpf}@familiabem.com`;
 
     try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-        currentUid = userCredential.user.uid;
-        
-        // Busca qual o papel dele e a ID da família no Banco de Dados
-        const userSnapshot = await get(ref(dbFirebase, `users/${currentUid}`));
+        const userSnapshot = await get(ref(dbFirebase, `users/${cpf}`));
         if(userSnapshot.exists()) {
             const userData = userSnapshot.val();
-            currentUser = userData.role;
-            currentFamilyId = userData.familyId;
-            
-            document.getElementById('display-user').innerText = currentUser;
-            window.showScreen('main-screen');
-            listenToCoupleData(); 
+            if(userData.password === pass) {
+                currentCpf = cpf;
+                currentUser = userData.role;
+                currentFamilyId = userData.familyId;
+                
+                // Salva sessão localmente para não deslogar ao atualizar página
+                localStorage.setItem('loggedCpf', cpf);
 
-            if ("Notification" in window) Notification.requestPermission().then(p => { if (p === "granted") checkTodayInstallments(); });
+                document.getElementById('display-user').innerText = currentUser;
+                window.showScreen('main-screen');
+                listenToCoupleData(); 
+
+                if ("Notification" in window) Notification.requestPermission().then(p => { if (p === "granted") checkTodayInstallments(); });
+            } else {
+                showToast("Senha incorreta!", true);
+            }
         } else {
-            showToast("Perfil de usuário não encontrado.", true);
+            showToast("CPF não encontrado.", true);
         }
     } catch(error) {
-        showToast("Login ou senha incorretos!", true);
+        showToast("Erro ao conectar.", true);
     }
 };
 
-window.handleForgotPassword = function() {
-    showConfirmModal(
-        "Aviso do Sistema", 
-        "O sistema de segurança do Firebase impede a troca de senha sem um E-mail verdadeiro por aqui. Me avise no chat qual caminho vamos seguir para o Esqueci a Senha!", 
-        () => { window.showScreen('login-screen'); }
-    );
+window.handleForgotPassword = async function() {
+    const cpf = document.getElementById('forgot-cpf').value.replace(/\D/g, '');
+    const phrase = document.getElementById('forgot-phrase').value;
+    const newPass = document.getElementById('forgot-new-pass').value;
+
+    if(!cpf || !phrase || !newPass) return showToast("Preencha todos os campos!", true);
+    if(newPass.length < 6) return showToast("A nova senha precisa ter no mínimo 6 caracteres.", true);
+
+    const userRef = ref(dbFirebase, `users/${cpf}`);
+    const snapshot = await get(userRef);
+
+    if(snapshot.exists()) {
+        const userData = snapshot.val();
+        if(userData.securityPhrase.toLowerCase() === phrase.toLowerCase()) {
+            await update(userRef, { password: newPass });
+            showToast("Senha alterada com sucesso! Faça seu login.");
+            window.showScreen('login-screen');
+        } else {
+            showToast("Frase de segurança incorreta!", true);
+        }
+    } else {
+        showToast("CPF não encontrado!", true);
+    }
 };
 
 window.logout = function() {
-    showConfirmModal("Sair da Conta", "Deseja encerrar sua sessão?", async () => {
-        await signOut(auth); currentUid = null; currentUser = null; currentFamilyId = null;
+    showConfirmModal("Sair da Conta", "Deseja encerrar sua sessão?", () => {
+        localStorage.removeItem('loggedCpf');
+        currentCpf = null; currentUser = null; currentFamilyId = null;
         window.showScreen('login-screen');
     });
 };
