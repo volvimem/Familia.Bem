@@ -25,29 +25,29 @@ body { background: var(--bg-gradient); color: var(--text-light); min-height: 100
 
 h1, h2, h3, h4 { color: var(--primary-gold); text-align: center; margin-bottom: 15px; }
 
-input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: none; outline: none; font-size: 1rem; }
-input, select { background: rgba(255,255,255,0.08); color: white; border: 1px solid var(--glass-border); color-scheme: dark; }
+input, select { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: none; outline: none; font-size: 1rem; background: rgba(255,255,255,0.08); color: white; border: 1px solid var(--glass-border); color-scheme: dark; }
 select option { color: #111; background: #fff; }
 
 /* -------------------------------------------------------------
-   SISTEMA UNIVERSAL DE EFEITO DE CLIQUE EM BOTOES E ICONES
+   SISTEMA UNIVERSAL DE EFEITO DE CLIQUE (BOTÕES, ÍCONES E LINKS)
 ------------------------------------------------------------- */
-button, .btn-outline, .tool-btn, .tab, .fab, .action-btns button, .cal-day, .link-text, .profile-btn {
+button, .tab, .fab, .cal-day, .link-text, .profile-btn {
     cursor: pointer;
-    transition: all 0.15s ease;
-    -webkit-tap-highlight-color: transparent; /* Remove borda azul no celular */
+    transition: transform 0.1s ease, background-color 0.1s ease, opacity 0.1s ease;
+    -webkit-tap-highlight-color: transparent; /* Remove flash azul no Android */
 }
 
-/* O pulinho e mudança de cor ao apertar QUALQUER coisa */
-button:active, .btn-outline:active, .tool-btn:active, .tab:active, .fab:active, .action-btns button:active, .cal-day:active, .link-text:active, .profile-btn:active {
-    transform: scale(0.92) !important;
-    opacity: 0.7;
+/* O pulinho e opacidade ao apertar */
+button:active, .tab:active, .fab:active, .cal-day:active, .link-text:active, .profile-btn:active {
+    transform: scale(0.95) !important;
+    opacity: 0.8;
 }
 
-button { background: var(--primary-gold); color: #111; font-weight: bold; }
+button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: none; outline: none; font-size: 1rem; background: var(--primary-gold); color: #111; font-weight: bold; }
 .btn-outline { background: transparent; border: 1px solid var(--primary-gold); color: var(--primary-gold); }
+.btn-outline:active { background: rgba(212, 175, 55, 0.15); }
 .link-text { color: var(--primary-gold); font-size: 0.85rem; display: block; margin-top: 15px; text-align: center; text-decoration: underline; }
-.profile-btn { background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--glass-border); border-radius: 15px; padding: 30px 10px; font-size: 1.2rem; flex: 1; }
+.profile-btn { background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--glass-border); border-radius: 15px; padding: 30px 10px; font-size: 1.2rem; flex: 1; border: none; }
 
 /* Tabs e Ferramentas */
 .tabs { display: flex; gap: 10px; margin-bottom: 10px; }
@@ -69,11 +69,11 @@ button { background: var(--primary-gold); color: #111; font-weight: bold; }
 }
 .expense-info small { display: block; opacity: 0.7; font-size: 0.75rem; margin-top: 4px; }
 .action-btns { display: flex; gap: 5px; }
-.action-btns button { width: 35px; height: 35px; padding: 0; display: flex; justify-content: center; align-items: center; border-radius: 8px; font-size: 1.1rem; background: rgba(255,255,255,0.1); border: none; }
+.action-btns button { width: 35px; height: 35px; padding: 0; display: flex; justify-content: center; align-items: center; border-radius: 8px; font-size: 1.1rem; background: rgba(255,255,255,0.1); border: none; margin: 0;}
 
 /* Calendário */
 .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.calendar-header button { width: auto; padding: 5px 15px; background: rgba(255,255,255,0.1); color: white; border-radius: 8px; }
+.calendar-header button { width: auto; padding: 5px 15px; background: rgba(255,255,255,0.1); color: white; border-radius: 8px; margin: 0;}
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; font-size: 0.85rem; }
 .day-name { font-weight: bold; color: var(--primary-gold); padding-bottom: 5px; }
 .cal-day { padding: 8px 0; border-radius: 8px; background: rgba(0,0,0,0.2); position: relative; }
@@ -81,16 +81,16 @@ button { background: var(--primary-gold); color: #111; font-weight: bold; }
 .has-event::after { content: ''; width: 6px; height: 6px; background: var(--danger); border-radius: 50%; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); }
 
 /* FAB (+) */
-.fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: var(--primary-gold); color: #111; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 100; }
+.fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: var(--primary-gold); color: #111; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 100; margin: 0;}
 
 /* Modal e Toast */
-.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; justify-content: center; align-items: center; padding: 15px; }
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; padding: 15px; }
 .modal.active { display: flex; }
 .modal-content { max-width: 400px; width: 100%; max-height: 90vh; overflow-y: auto; text-align: center; }
 .flex-row { display: flex; gap: 10px; align-items: center; justify-content: center; }
 .flex-row button { width: auto; padding: 12px 15px; flex: 1; }
 
-#toast { visibility: hidden; min-width: 250px; background-color: var(--success); color: #fff; text-align: center; border-radius: 12px; padding: 15px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); }
+#toast { visibility: hidden; min-width: 250px; background-color: var(--success); color: #fff; text-align: center; border-radius: 12px; padding: 15px; position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); }
 #toast.show { visibility: visible; animation: fadein 0.4s, fadeout 0.4s 2.5s; }
 @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
 @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
