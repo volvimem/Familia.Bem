@@ -108,8 +108,7 @@ window.handleRegister = async function() {
         showToast("✅ Família cadastrada com sucesso!");
     } catch(error) {
         if(error.code === 'auth/email-already-in-use') showToast("❌ Este e-mail já está em uso!", true);
-        else if(error.code === 'auth/invalid-email') showToast("❌ E-mail inválido!", true);
-        else showToast("❌ Erro ao registrar.", true);
+        else showToast("❌ Erro ao registrar. Verifique o E-mail.", true);
     }
 };
 
@@ -122,18 +121,8 @@ window.attemptLogin = async function() {
     try { 
         showToast("⏳ Conectando...");
         await signInWithEmailAndPassword(auth, email, pass); 
-        showToast("✅ Login realizado!");
     } catch(error) { 
-        console.error(error.code);
-        if(error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-            showToast("❌ Senha incorreta!", true);
-        } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
-            showToast("❌ E-mail não cadastrado ou inválido!", true);
-        } else if (error.code === 'auth/too-many-requests') {
-            showToast("❌ Muitas tentativas. Aguarde um momento.", true);
-        } else {
-            showToast("❌ Erro ao entrar. Verifique os dados.", true);
-        }
+        showToast("❌ E-mail ou senha incorretos!", true); 
     }
 };
 
@@ -185,17 +174,11 @@ window.loginProfile = async function() {
     const pass = document.getElementById('profile-pass').value;
     if(!pass) return showToast("⚠️ Digite a sua senha de perfil!", true);
 
-    try {
-        const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
-        if(snap.exists() && snap.val().password === pass) {
-            document.getElementById('profile-pass').value = '';
-            enterProfile(selectedRoleToLogin);
-        } else { 
-            showToast("❌ Senha do perfil incorreta!", true); 
-        }
-    } catch(e) {
-        showToast("❌ Erro de conexão com o banco.", true);
-    }
+    const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
+    if(snap.exists() && snap.val().password === pass) {
+        document.getElementById('profile-pass').value = '';
+        enterProfile(selectedRoleToLogin);
+    } else { showToast("❌ Senha do perfil incorreta!", true); }
 };
 
 window.openProfileRecovery = function() {
@@ -302,14 +285,18 @@ function renderCalendar() {
 }
 
 function updateCategorySelect() { const select = document.getElementById('exp-cat'); select.innerHTML = ''; db.categories.forEach(cat => { select.innerHTML += `<option value="${cat}">${cat}</option>`; }); }
-window.openCategoryModal = function() { document.getElementById('new-cat-name').value = ''; document.getElementById('modal-category').classList.add('active'); };
+
+window.openCategoryModal = function() { 
+    document.getElementById('new-cat-name').value = ''; 
+    document.getElementById('modal-category').classList.add('active'); 
+};
 window.confirmAddCategory = function() { 
     const newCat = document.getElementById('new-cat-name').value.trim(); 
     if (newCat) { 
         db.categories.push(newCat); saveDB(); 
         updateCategorySelect(); 
         setTimeout(() => document.getElementById('exp-cat').value = newCat, 50);
-        showToast("Categoria Adicionada!"); 
+        showToast("✅ Categoria Adicionada!"); 
         window.closeCategoryModal(); 
     } 
 };
@@ -405,7 +392,7 @@ window.rejectEntry = function(id) {
     if(idx > -1) {
         db.entries[idx].type = 'personal'; 
         db.entries[idx].status = 'approved'; 
-        logNotification(`❌ ${currentUser.toUpperCase()} recusou a despesa "${db.entries[idx].desc}". Ela foi para o painel Pessoal do criador.`);
+        logNotification(`❌ ${currentUser.toUpperCase()} recusou a despesa "${db.entries[idx].desc}". Ela foi para o painel Pessoal.`);
         saveDB(); renderAll(); showToast("❌ Despesa negada!");
     }
 };
