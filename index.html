@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanças Premium v8.4</title>
+    <title>Finanças Premium v8.5</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
     <meta name="theme-color" content="#0f0c29">
@@ -16,26 +16,26 @@
         <h1>Login da Família</h1>
         <input type="email" id="login-email" placeholder="E-mail da Família">
         <input type="password" id="login-pass" placeholder="Senha">
-        <button onclick="attemptLogin()">Entrar</button>
-        <span class="link-text" onclick="showScreen('forgot-screen')" style="margin-top: 5px;">Esqueci minha senha</span>
+        <button onclick="attemptLogin()">Entrar na Conta Família</button>
+        <span class="link-text" onclick="showScreen('forgot-screen')" style="margin-top: 5px;">Esqueci a senha da Família</span>
         <span class="link-text" onclick="showScreen('register-screen')">Criar Conta Família</span>
     </div>
 
     <div id="register-screen" class="screen glass">
         <h1>Nova Família</h1>
-        <p style="font-size: 0.8rem; text-align: center; margin-bottom: 10px; opacity: 0.8;">Use um e-mail verdadeiro para poder recuperar a senha depois.</p>
+        <p style="font-size: 0.8rem; text-align: center; margin-bottom: 10px; opacity: 0.8;">Use um e-mail verdadeiro para poder recuperar a senha da família depois.</p>
         <input type="email" id="reg-email" placeholder="E-mail principal (Verdadeiro)">
         <input type="password" id="reg-pass" placeholder="Crie uma senha (mín. 6 dígitos)">
         <hr style="border-color: var(--glass-border); margin: 15px 0;">
         <input type="text" id="reg-cpf-1" placeholder="CPF do Titular (Apenas números)">
         <input type="text" id="reg-cpf-2" placeholder="CPF do Cônjuge (Apenas números)">
-        <button onclick="handleRegister()" style="margin-top: 15px;">Cadastrar</button>
+        <button onclick="handleRegister()" style="margin-top: 15px;">Cadastrar Família</button>
         <span class="link-text" onclick="showScreen('login-screen')">Voltar para Login</span>
     </div>
 
     <div id="forgot-screen" class="screen glass">
-        <h1>Recuperar Senha</h1>
-        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">Enviaremos um link de redefinição para o seu e-mail.</p>
+        <h1>Recuperar Conta</h1>
+        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">Enviaremos um link de redefinição para o e-mail da Família.</p>
         <input type="email" id="forgot-email" placeholder="Digite o E-mail da Família">
         <button onclick="handleForgotPassword()">Enviar Link de Recuperação</button>
         <span class="link-text" onclick="showScreen('login-screen')">Voltar para Login</span>
@@ -44,19 +44,45 @@
     <div id="profile-screen" class="screen glass" style="text-align: center;">
         <h1>Quem está acessando?</h1>
         <div style="display: flex; gap: 15px; margin-top: 20px;">
-            <button onclick="selectProfile('marido')" style="padding: 30px 10px; font-size: 1.2rem; display: flex; flex-direction: column; align-items: center; gap: 10px;"><span style="font-size: 2.5rem;">👨</span> Marido</button>
-            <button onclick="selectProfile('esposa')" style="padding: 30px 10px; font-size: 1.2rem; display: flex; flex-direction: column; align-items: center; gap: 10px;"><span style="font-size: 2.5rem;">👩</span> Esposa</button>
+            <button onclick="selectProfile('marido')" class="profile-btn"><span style="font-size: 2.5rem;">👨</span><br>Marido</button>
+            <button onclick="selectProfile('esposa')" class="profile-btn"><span style="font-size: 2.5rem;">👩</span><br>Esposa</button>
         </div>
-        <span class="link-text" onclick="logout()" style="color: var(--danger);">Sair da Conta</span>
+        <span class="link-text" onclick="logoutFamily()" style="color: var(--danger); margin-top: 20px;">Sair da Conta Família</span>
+    </div>
+
+    <div id="profile-login-screen" class="screen glass">
+        <h1 id="profile-login-title">Área Privada</h1>
+        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">Digite a senha do seu perfil para acessar suas finanças.</p>
+        <input type="password" id="profile-pass" placeholder="Senha do Perfil">
+        <button onclick="loginProfile()">Entrar no Meu Perfil</button>
+        <span class="link-text" onclick="showScreen('profile-forgot-screen')">Esqueci a senha do meu perfil</span>
+        <span class="link-text" onclick="showScreen('profile-screen')">Voltar</span>
+    </div>
+
+    <div id="profile-setup-screen" class="screen glass">
+        <h1 id="profile-setup-title">Criar Senha Privada</h1>
+        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">Crie uma senha exclusiva para proteger sua área e uma frase para caso esqueça.</p>
+        <input type="password" id="setup-profile-pass" placeholder="Nova Senha do Perfil">
+        <input type="text" id="setup-profile-phrase" placeholder="Frase de Segurança (Ex: Nome da mãe)">
+        <button onclick="setupProfile()">Salvar e Entrar</button>
+        <span class="link-text" onclick="showScreen('profile-screen')">Voltar</span>
+    </div>
+
+    <div id="profile-forgot-screen" class="screen glass">
+        <h1>Recuperar Perfil</h1>
+        <input type="text" id="forgot-profile-phrase" placeholder="Sua Frase de Segurança">
+        <input type="password" id="forgot-profile-new-pass" placeholder="Criar Nova Senha do Perfil">
+        <button onclick="recoverProfile()">Redefinir Minha Senha</button>
+        <span class="link-text" onclick="showScreen('profile-login-screen')">Voltar</span>
     </div>
 
     <div id="main-screen" class="screen" style="max-width: 800px;">
         <header class="glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 5px;">
             <h3 style="margin:0;">Olá, <span id="display-user" style="color:white; text-transform: capitalize;"></span></h3>
             <div style="display: flex; gap: 5px;">
-                <button onclick="openNotifications()" class="btn-outline" style="width: auto; padding: 5px 10px;">🔔 Log</button>
-                <button onclick="switchProfile()" class="btn-outline" style="width: auto; padding: 5px 10px;">🔄 Perfil</button>
-                <button onclick="logout()" class="btn-outline" style="width: auto; padding: 5px 10px; color: var(--danger); border-color: var(--danger);">Sair</button>
+                <button id="btn-install" class="btn-outline" style="display: none; width: auto; padding: 5px 10px;" onclick="installApp()">⬇️ App</button>
+                <button onclick="openNotifications()" class="btn-outline" style="width: auto; padding: 5px 10px;">🔔 Histórico Casa</button>
+                <button onclick="logoutProfile()" class="btn-outline" style="width: auto; padding: 5px 10px; color: var(--danger); border-color: var(--danger);">Sair</button>
             </div>
         </header>
 
