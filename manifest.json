@@ -1,0 +1,17 @@
+{
+  "name": "Finanças Premium",
+  "short_name": "Finanças",
+  "description": "Aplicativo para gerenciar as finanças da casa e pessoais.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f0c29",
+  "theme_color": "#0f0c29",
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
