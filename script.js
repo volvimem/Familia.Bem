@@ -38,6 +38,11 @@ window.closeModals = function() {
     document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
 };
 
+window.closeCategoryModal = function() {
+    // Fecha SÓ a categoria, não afeta a tela de despesa que está por trás!
+    document.getElementById('modal-category').classList.remove('active');
+};
+
 function showToast(msg, isError = false) {
     const t = document.getElementById('toast');
     t.innerText = msg;
@@ -85,7 +90,7 @@ function listenToCoupleData() {
     });
 }
 
-// --- 3. LOGIN GERAL DA FAMÍLIA ---
+// --- 3. LOGIN GERAL DA FAMÍLIA E PERFIS ---
 window.handleRegister = async function() {
     const email = document.getElementById('reg-email').value.trim();
     const pass = document.getElementById('reg-pass').value;
@@ -111,12 +116,7 @@ window.attemptLogin = async function() {
     const email = document.getElementById('login-email').value.trim();
     const pass = document.getElementById('login-pass').value;
     if(!email || !pass) return showToast("Preencha E-mail e Senha!", true);
-
-    try {
-        await signInWithEmailAndPassword(auth, email, pass);
-    } catch(error) {
-        showToast("E-mail ou senha incorretos!", true);
-    }
+    try { await signInWithEmailAndPassword(auth, email, pass); } catch(error) { showToast("E-mail ou senha incorretos!", true); }
 };
 
 window.handleForgotPassword = async function() {
@@ -126,9 +126,7 @@ window.handleForgotPassword = async function() {
         await sendPasswordResetEmail(auth, email);
         showToast("Link enviado para o e-mail da Família!");
         window.showScreen('login-screen');
-    } catch(error) {
-        showToast("Erro ao enviar. Verifique o E-mail.", true);
-    }
+    } catch(error) { showToast("Erro ao enviar. Verifique o E-mail.", true); }
 };
 
 window.logoutFamily = function() {
@@ -137,7 +135,6 @@ window.logoutFamily = function() {
     });
 };
 
-// --- 4. SISTEMA DE PERFIS E SENHA PRIVADA ---
 window.selectProfile = async function(role) {
     selectedRoleToLogin = role;
     if(document.getElementById('profile-pass')) document.getElementById('profile-pass').value = '';
@@ -151,9 +148,7 @@ window.selectProfile = async function(role) {
             document.getElementById('profile-setup-title').innerText = `Criar Senha - ${role.charAt(0).toUpperCase() + role.slice(1)}`;
             window.showScreen('profile-setup-screen');
         }
-    } catch(e) {
-        showToast("Erro ao conectar no perfil", true);
-    }
+    } catch(e) { showToast("Erro ao conectar no perfil", true); }
 };
 
 window.setupProfile = async function() {
@@ -174,24 +169,47 @@ window.loginProfile = async function() {
     if(snap.exists() && snap.val().password === pass) {
         document.getElementById('profile-pass').value = '';
         enterProfile(selectedRoleToLogin);
-    } else {
-        showToast("Senha do perfil incorreta!", true);
-    }
+    } else { showToast("Senha do perfil incorreta!", true); }
+};
+
+window.openProfileRecovery = function() {
+    document.getElementById('forgot-profile-phrase').value = '';
+    document.getElementById('forgot-profile-new-pass').value = '';
+    document.getElementById('forgot-profile-family-pass').value = '';
+    window.showScreen('profile-forgot-screen');
 };
 
 window.recoverProfile = async function() {
+    const role = document.getElementById('forgot-profile-role').value;
     const phrase = document.getElementById('forgot-profile-phrase').value.trim();
     const newPass = document.getElementById('forgot-profile-new-pass').value;
-    if(!phrase || !newPass) return showToast("Preencha a frase e a nova senha!", true);
 
-    const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
+    if(!phrase || !newPass) return showToast("Preencha a frase e a nova senha!", true);
+    if(newPass.length < 6) return showToast("A senha precisa ter no mínimo 6 caracteres.", true);
+
+    const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}`));
     if(snap.exists() && snap.val().phrase.toLowerCase() === phrase.toLowerCase()) {
-        await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}/password`), newPass);
-        showToast("Senha privada alterada com sucesso!");
-        window.showScreen('profile-login-screen');
-    } else {
-        showToast("Frase de segurança incorreta!", true);
-    }
+        await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}/password`), newPass);
+        showToast("Senha do perfil alterada com sucesso!");
+        window.showScreen('profile-screen');
+    } else { showToast("Frase de segurança incorreta!", true); }
+};
+
+window.recoverProfileWithFamilyPass = async function() {
+    const role = document.getElementById('forgot-profile-role').value;
+    const familyPass = document.getElementById('forgot-profile-family-pass').value;
+    const newPass = document.getElementById('forgot-profile-new-pass').value;
+
+    if(!familyPass || !newPass) return showToast("Preencha a senha da família e a nova senha!", true);
+    if(newPass.length < 6) return showToast("A nova senha precisa ter no mínimo 6 caracteres.", true);
+
+    try {
+        const email = auth.currentUser.email;
+        await signInWithEmailAndPassword(auth, email, familyPass); 
+        await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}/password`), newPass);
+        showToast("Senha do perfil alterada usando a conta Família!");
+        window.showScreen('profile-screen');
+    } catch(error) { showToast("Senha da Família incorreta!", true); }
 };
 
 function enterProfile(role) {
@@ -223,7 +241,6 @@ window.openNotifications = function() {
     const list = document.getElementById('notifications-list'); list.innerHTML = '';
     if (!db.notificationsLog || db.notificationsLog.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5;">Nenhuma atividade recente.</p>';
     else db.notificationsLog.forEach(log => { list.innerHTML += `<div class="log-item"><span class="log-time">${log.time}</span>${log.text}</div>`; });
-    // REMOVIDA a chamada bugada (showScreen) que travava a tela. Agora ele abre só o pop-up:
     document.getElementById('modal-notifications').classList.add('active');
 };
 
@@ -259,37 +276,106 @@ function renderCalendar() {
 }
 
 function updateCategorySelect() { const select = document.getElementById('exp-cat'); select.innerHTML = ''; db.categories.forEach(cat => { select.innerHTML += `<option value="${cat}">${cat}</option>`; }); }
-
-window.openCategoryModal = function() { 
-    document.getElementById('new-cat-name').value = ''; 
-    document.getElementById('modal-category').classList.add('active'); 
+window.openCategoryModal = function() { document.getElementById('new-cat-name').value = ''; document.getElementById('modal-category').classList.add('active'); };
+window.confirmAddCategory = function() { 
+    const newCat = document.getElementById('new-cat-name').value.trim(); 
+    if (newCat) { 
+        db.categories.push(newCat); saveDB(); 
+        updateCategorySelect(); 
+        setTimeout(() => document.getElementById('exp-cat').value = newCat, 50);
+        showToast("Categoria Adicionada!"); 
+        window.closeCategoryModal(); 
+    } 
 };
-window.confirmAddCategory = function() { const newCat = document.getElementById('new-cat-name').value.trim(); if (newCat) { db.categories.push(newCat); saveDB(); showToast("Categoria Adicionada!"); window.closeModals(); } };
 
-window.openAddModal = function() { document.getElementById('edit-id').value = ''; document.getElementById('form-title').innerText = "Nova Despesa"; document.getElementById('exp-desc').value = ''; document.getElementById('exp-val').value = ''; document.getElementById('exp-date').value = getIsoDate(selectedDate); document.getElementById('parcelas-container').style.display = 'block'; document.getElementById('modal-add').classList.add('active'); };
+window.openAddModal = function() { 
+    document.getElementById('edit-id').value = ''; 
+    document.getElementById('form-title').innerText = "Nova Despesa"; 
+    document.getElementById('exp-desc').value = ''; 
+    document.getElementById('exp-val').value = ''; 
+    document.getElementById('exp-date').value = getIsoDate(selectedDate);
+    
+    // Limpa e reseta campos de Alarme Automático
+    document.getElementById('exp-alarm-date').value = '';
+    document.getElementById('exp-alarm-time').value = '';
+    
+    // Deixa o texto de Divisão DINÂMICO (Elimina a confusão)
+    const splitSelect = document.getElementById('exp-split');
+    const partner = currentUser === 'marido' ? 'Esposa' : 'Marido';
+    splitSelect.innerHTML = `
+        <option value="50">Pagamos juntos (50/50)</option>
+        <option value="100">Eu paguei tudo (A ${partner} me deve a metade)</option>
+        <option value="-100">A ${partner} pagou tudo (Eu devo a metade a ela)</option>
+        <option value="0">Eu assumi tudo (A ${partner} não deve nada)</option>
+    `;
+    
+    document.getElementById('parcelas-container').style.display = 'block'; 
+    document.getElementById('modal-add').classList.add('active'); 
+};
+
 window.handleAddEntry = function() {
-    const editId = document.getElementById('edit-id').value; const desc = document.getElementById('exp-desc').value;
-    const valTotal = parseFloat(document.getElementById('exp-val').value); const cat = document.getElementById('exp-cat').value;
-    const date = document.getElementById('exp-date').value; const split = parseInt(document.getElementById('exp-split').value); const parcels = parseInt(document.getElementById('exp-installments').value);
+    const editId = document.getElementById('edit-id').value; 
+    const desc = document.getElementById('exp-desc').value;
+    const valTotal = parseFloat(document.getElementById('exp-val').value); 
+    const cat = document.getElementById('exp-cat').value;
+    const date = document.getElementById('exp-date').value; 
+    const split = parseInt(document.getElementById('exp-split').value); 
+    const parcels = parseInt(document.getElementById('exp-installments').value);
+    
+    const alarmDate = document.getElementById('exp-alarm-date').value;
+    const alarmTime = document.getElementById('exp-alarm-time').value;
 
-    if (!desc || isNaN(valTotal) || !date) return showToast("Preencha os campos!", true);
+    if (!desc || isNaN(valTotal) || !date) return showToast("Preencha os campos obrigatórios!", true);
 
     const saveAction = () => {
         if (editId) {
             const idx = db.entries.findIndex(e => e.id == editId);
-            if(idx > -1) { db.entries[idx].desc = desc; db.entries[idx].val = valTotal; db.entries[idx].category = cat; db.entries[idx].date = date; db.entries[idx].split = split; }
+            if(idx > -1) { 
+                db.entries[idx].desc = desc; db.entries[idx].val = valTotal; 
+                db.entries[idx].category = cat; db.entries[idx].date = date; db.entries[idx].split = split; 
+            }
             if(db.entries[idx].type === 'home') logNotification(`✏️ ${currentUser.toUpperCase()} alterou a despesa "${desc}".`);
         } else {
             const valParcela = valTotal / parcels; let [y, m, d] = date.split('-').map(Number);
             for(let i = 0; i < parcels; i++) {
                 let newDate = new Date(y, m - 1 + i, d); let finalDesc = parcels > 1 ? `${desc} (${i+1}/${parcels})` : desc;
-                db.entries.push({ id: Date.now() + i, desc: finalDesc, val: valParcela, category: cat, date: getIsoDate(newDate), split: split, owner: currentUser, type: currentView });
+                const baseId = Date.now() + i;
+                
+                db.entries.push({ 
+                    id: baseId, desc: finalDesc, val: valParcela, category: cat, 
+                    date: getIsoDate(newDate), split: split, owner: currentUser, type: currentView,
+                    status: currentView === 'home' ? 'pending' : 'approved' // Se for de Casa, aguarda aprovação!
+                });
+
+                // Se definiu Alarme para pagar (só na primeira parcela para não floodar)
+                if (alarmDate && alarmTime && i === 0) {
+                    db.entries.push({ id: baseId + 1000, isAlarm: true, desc: "⏰ Pagar: " + finalDesc, date: alarmDate, time: alarmTime, owner: currentUser, type: currentView });
+                }
             }
-            if (currentView === 'home') { const msg = `🏠 ${currentUser.toUpperCase()} lançou: ${desc} (R$ ${valTotal.toFixed(2)})`; sendNotification("Nova Despesa", msg); logNotification(msg); }
+            if (currentView === 'home') { const msg = `🏠 ${currentUser.toUpperCase()} lançou: ${desc} (Aguardando Aprovação)`; sendNotification("Despesa Pendente", msg); logNotification(msg); }
         }
         saveDB(); showToast("Salvo!"); window.closeModals();
     };
     if (editId) window.showConfirmModal("Confirmar Alteração", "Deseja salvar as mudanças neste registro?", saveAction); else saveAction();
+};
+
+window.approveEntry = function(id) {
+    const idx = db.entries.findIndex(e => e.id === id);
+    if(idx > -1) {
+        db.entries[idx].status = 'approved';
+        logNotification(`✅ ${currentUser.toUpperCase()} aprovou a despesa "${db.entries[idx].desc}".`);
+        saveDB(); renderAll(); showToast("Despesa aprovada!");
+    }
+};
+
+window.rejectEntry = function(id) {
+    const idx = db.entries.findIndex(e => e.id === id);
+    if(idx > -1) {
+        db.entries[idx].type = 'personal'; 
+        db.entries[idx].status = 'approved'; // Aprova automaticamente para a conta pessoal de quem enviou
+        logNotification(`❌ ${currentUser.toUpperCase()} recusou a despesa "${db.entries[idx].desc}". Ela foi enviada para o painel Pessoal do criador.`);
+        saveDB(); renderAll(); showToast("Despesa negada!");
+    }
 };
 
 window.editEntry = function(id) { const e = db.entries.find(x => x.id === id); document.getElementById('edit-id').value = e.id; document.getElementById('form-title').innerText = "Editar Registro"; document.getElementById('exp-desc').value = e.desc; document.getElementById('exp-val').value = e.val; document.getElementById('exp-cat').value = e.category; document.getElementById('exp-date').value = e.date; document.getElementById('exp-split').value = e.split; document.getElementById('parcelas-container').style.display = 'none'; document.getElementById('modal-add').classList.add('active'); };
@@ -320,7 +406,10 @@ function renderAll() {
     const baseMonthEntries = db.entries.filter(e => { const [y, m] = e.date.split('-'); return parseInt(y) === selY && (parseInt(m)-1) === selM && !e.isAlarm; });
 
     let viewMonthEntries = []; let totalM = 0; let totalE = 0; let debtM = 0; let debtE = 0; let personalTotal = 0;
-    const homeMonthEntries = baseMonthEntries.filter(e => e.type === 'home');
+    
+    // Para as contas da casa, usamos APENAS as que já foram aprovadas (status !== 'pending')
+    const homeMonthEntries = baseMonthEntries.filter(e => e.type === 'home' && e.status !== 'pending');
+    
     homeMonthEntries.forEach(e => {
         if (e.split === 50) { totalM += (e.val/2); totalE += (e.val/2); }
         else if (e.owner === 'marido') { if (e.split === -100) { totalE += e.val; debtM += (e.val/2); } else { totalM += e.val; if(e.split === 100) debtE += (e.val/2); } }
@@ -328,13 +417,14 @@ function renderAll() {
     });
 
     if (currentView === 'home') {
-        viewMonthEntries = homeMonthEntries;
+        viewMonthEntries = homeMonthEntries; // Gráfico da Casa só mostra os aprovados
         document.getElementById('stat-m').innerText = `R$ ${totalM.toFixed(2)}`; document.getElementById('stat-e').innerText = `R$ ${totalE.toFixed(2)}`;
         document.getElementById('card-esposa').style.display = 'block'; document.getElementById('card-balance').style.display = 'block'; document.getElementById('label-marido').innerText = 'Total Marido';
         const bal = debtE - debtM; const balEl = document.getElementById('stat-balance');
         if(bal > 0) { balEl.innerText = `Esposa deve R$ ${bal.toFixed(2)}`; balEl.style.color = "var(--danger)"; } else if(bal < 0) { balEl.innerText = `Marido deve R$ ${Math.abs(bal).toFixed(2)}`; balEl.style.color = "var(--danger)"; } else { balEl.innerText = "Tudo quitado!"; balEl.style.color = "var(--success)"; }
     } else {
-        viewMonthEntries = baseMonthEntries.filter(e => e.type === 'home' || (e.type === 'personal' && e.owner === currentUser));
+        // Aba Pessoal: Mostra os gastos aprovados da casa + os gastos pessoais
+        viewMonthEntries = baseMonthEntries.filter(e => (e.type === 'home' && e.status !== 'pending') || (e.type === 'personal' && e.owner === currentUser));
         viewMonthEntries.filter(e => e.type === 'personal' && e.owner === currentUser).forEach(e => personalTotal += e.val);
         document.getElementById('stat-m').innerText = `R$ ${(personalTotal).toFixed(2)}`; document.getElementById('card-esposa').style.display = 'none';
         document.getElementById('card-balance').style.display = 'none'; document.getElementById('label-marido').innerText = 'Meu Total Pessoal';
@@ -343,12 +433,33 @@ function renderAll() {
     drawChart(viewMonthEntries);
 
     const dayStr = getIsoDate(selectedDate); const container = document.getElementById('list-container'); container.innerHTML = '<h4>Lançamentos do dia</h4>';
+    
+    // Lista do dia mostra pendentes para que possam ser aprovados!
     const viewDayEntries = db.entries.filter(e => { if(e.date !== dayStr) return false; if(currentView === 'home') return e.type === 'home' || e.isAlarm; return e.type === 'home' || (e.type === 'personal' && e.owner === currentUser) || (e.isAlarm && e.owner === currentUser); });
 
     if(viewDayEntries.length === 0) container.innerHTML += '<p style="text-align:center; opacity:0.5;">Nenhum registro no dia.</p>';
     viewDayEntries.forEach(e => {
-        if(e.isAlarm) { container.innerHTML += `<div class="expense-item" style="border-color: var(--info);"><div class="expense-info"><strong>${e.desc}</strong><small>${e.time} • Por: ${e.owner}</small></div><div class="action-btns"><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button></div></div>`; } 
-        else { const icon = e.type === 'home' ? '🏠' : '👤'; container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${e.val.toFixed(2)} - ${e.category}</small></div><div class="action-btns"><button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button></div></div>`; }
+        if(e.isAlarm) { 
+            container.innerHTML += `<div class="expense-item" style="border-color: var(--info);"><div class="expense-info"><strong>${e.desc}</strong><small>${e.time} • Por: ${e.owner}</small></div><div class="action-btns"><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button></div></div>`; 
+        } 
+        else { 
+            const icon = e.type === 'home' ? '🏠' : '👤'; 
+            let statusTag = '';
+            let actionHtml = '';
+
+            if (e.type === 'home' && e.status === 'pending') {
+                statusTag = `<span style="font-size: 0.65rem; background: var(--danger); padding: 2px 6px; border-radius: 8px; margin-left: 5px;">Aguardando Aval</span>`;
+                if (e.owner !== currentUser) {
+                    actionHtml = `<button onclick="approveEntry(${e.id})" style="color:var(--success)">✅</button><button onclick="rejectEntry(${e.id})" style="color:var(--danger)">❌</button>`;
+                } else {
+                    actionHtml = `<button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
+                }
+            } else {
+                actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
+            }
+
+            container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${e.val.toFixed(2)} - ${e.category} ${statusTag}</small></div><div class="action-btns">${actionHtml}</div></div>`; 
+        }
     });
 }
 
@@ -368,7 +479,7 @@ onAuthStateChanged(auth, (user) => {
         currentFamilyId = user.uid;
         const savedProfile = localStorage.getItem('activeProfile');
         if (savedProfile) {
-            window.selectProfile(savedProfile); // Isso vai garantir que o usuário precise digitar a senha do perfil sempre!
+            window.selectProfile(savedProfile);
         } else {
             window.showScreen('profile-screen');
         }
