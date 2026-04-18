@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanças Premium v8.2</title>
+    <title>Finanças Premium v8.4</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
     <meta name="theme-color" content="#0f0c29">
@@ -13,44 +13,49 @@
     <div id="toast">Ação realizada com sucesso!</div>
 
     <div id="login-screen" class="screen glass active">
-        <h1>Login</h1>
-        <input type="text" id="login-cpf" placeholder="Seu CPF (somente números)">
-        <input type="password" id="login-pass" placeholder="Sua Senha">
+        <h1>Login da Família</h1>
+        <input type="email" id="login-email" placeholder="E-mail da Família">
+        <input type="password" id="login-pass" placeholder="Senha">
         <button onclick="attemptLogin()">Entrar</button>
         <span class="link-text" onclick="showScreen('forgot-screen')" style="margin-top: 5px;">Esqueci minha senha</span>
-        <span class="link-text" onclick="showScreen('register-screen')">Meu Primeiro Acesso</span>
+        <span class="link-text" onclick="showScreen('register-screen')">Criar Conta Família</span>
     </div>
 
     <div id="register-screen" class="screen glass">
-        <h1>Primeiro Acesso</h1>
-        <select id="reg-role">
-            <option value="marido">Sou o Marido</option>
-            <option value="esposa">Sou a Esposa</option>
-        </select>
-        <input type="text" id="reg-cpf" placeholder="Meu CPF (somente números)">
-        <input type="text" id="reg-partner-cpf" placeholder="CPF do Parceiro(a) - Para vincular">
+        <h1>Nova Família</h1>
+        <p style="font-size: 0.8rem; text-align: center; margin-bottom: 10px; opacity: 0.8;">Use um e-mail verdadeiro para poder recuperar a senha depois.</p>
+        <input type="email" id="reg-email" placeholder="E-mail principal (Verdadeiro)">
         <input type="password" id="reg-pass" placeholder="Crie uma senha (mín. 6 dígitos)">
-        <input type="text" id="reg-phrase" placeholder="Frase de Segurança (Ex: Nome do 1º pet)">
-        <button onclick="handleRegister()">Salvar Meu Cadastro</button>
+        <hr style="border-color: var(--glass-border); margin: 15px 0;">
+        <input type="text" id="reg-cpf-1" placeholder="CPF do Titular (Apenas números)">
+        <input type="text" id="reg-cpf-2" placeholder="CPF do Cônjuge (Apenas números)">
+        <button onclick="handleRegister()" style="margin-top: 15px;">Cadastrar</button>
         <span class="link-text" onclick="showScreen('login-screen')">Voltar para Login</span>
     </div>
 
     <div id="forgot-screen" class="screen glass">
         <h1>Recuperar Senha</h1>
-        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">Informe seus dados para validar sua identidade.</p>
-        <input type="text" id="forgot-cpf" placeholder="Seu CPF (somente números)">
-        <input type="text" id="forgot-phrase" placeholder="Sua Frase de Segurança">
-        <input type="password" id="forgot-new-pass" placeholder="Nova Senha">
-        <button onclick="handleForgotPassword()">Alterar Senha</button>
+        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">Enviaremos um link de redefinição para o seu e-mail.</p>
+        <input type="email" id="forgot-email" placeholder="Digite o E-mail da Família">
+        <button onclick="handleForgotPassword()">Enviar Link de Recuperação</button>
         <span class="link-text" onclick="showScreen('login-screen')">Voltar para Login</span>
+    </div>
+
+    <div id="profile-screen" class="screen glass" style="text-align: center;">
+        <h1>Quem está acessando?</h1>
+        <div style="display: flex; gap: 15px; margin-top: 20px;">
+            <button onclick="selectProfile('marido')" style="padding: 30px 10px; font-size: 1.2rem; display: flex; flex-direction: column; align-items: center; gap: 10px;"><span style="font-size: 2.5rem;">👨</span> Marido</button>
+            <button onclick="selectProfile('esposa')" style="padding: 30px 10px; font-size: 1.2rem; display: flex; flex-direction: column; align-items: center; gap: 10px;"><span style="font-size: 2.5rem;">👩</span> Esposa</button>
+        </div>
+        <span class="link-text" onclick="logout()" style="color: var(--danger);">Sair da Conta</span>
     </div>
 
     <div id="main-screen" class="screen" style="max-width: 800px;">
         <header class="glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 5px;">
             <h3 style="margin:0;">Olá, <span id="display-user" style="color:white; text-transform: capitalize;"></span></h3>
             <div style="display: flex; gap: 5px;">
-                <button id="btn-install" class="btn-outline" style="display: none; width: auto; padding: 5px 10px;" onclick="installApp()">⬇️ App</button>
-                <button onclick="openNotifications()" class="btn-outline" style="width: auto; padding: 5px 10px;">🔔 Histórico</button>
+                <button onclick="openNotifications()" class="btn-outline" style="width: auto; padding: 5px 10px;">🔔 Log</button>
+                <button onclick="switchProfile()" class="btn-outline" style="width: auto; padding: 5px 10px;">🔄 Perfil</button>
                 <button onclick="logout()" class="btn-outline" style="width: auto; padding: 5px 10px; color: var(--danger); border-color: var(--danger);">Sair</button>
             </div>
         </header>
@@ -93,113 +98,15 @@
     </div>
 
     <div id="feira-screen" class="screen" style="max-width: 800px;">
-        <div class="feira-header glass">
-            <button class="btn-outline" onclick="closeFeiraScreen()" style="width: auto; padding: 5px 15px;">❮ Voltar</button>
-            <h3 style="margin: 0;">Carrinho de Feira</h3>
-            <button class="btn-outline" onclick="clearFeira()" style="width: auto; padding: 5px 15px; color: var(--danger); border-color: var(--danger);">Limpar</button>
-        </div>
-        <div class="glass">
-            <div class="feira-total-display">R$ <span id="feira-total-val">0.00</span></div>
-        </div>
-        <div class="glass" id="feira-list-container" style="margin-top: 15px;"></div>
-        <div class="fab" onclick="openFeiraItemModal()" style="background: var(--success); color: white;">+</div>
+        <div class="feira-header glass"><button class="btn-outline" onclick="closeFeiraScreen()" style="width: auto; padding: 5px 15px;">❮ Voltar</button><h3 style="margin: 0;">Carrinho de Feira</h3><button class="btn-outline" onclick="clearFeira()" style="width: auto; padding: 5px 15px; color: var(--danger); border-color: var(--danger);">Limpar</button></div>
+        <div class="glass"><div class="feira-total-display">R$ <span id="feira-total-val">0.00</span></div></div><div class="glass" id="feira-list-container" style="margin-top: 15px;"></div><div class="fab" onclick="openFeiraItemModal()" style="background: var(--success); color: white;">+</div>
     </div>
-
-    <div id="modal-confirm" class="modal">
-        <div class="glass modal-content">
-            <h3 id="confirm-title" style="color: var(--danger);">Atenção</h3>
-            <p id="confirm-msg" style="margin: 20px 0;">Você tem certeza?</p>
-            <div class="flex-row">
-                <button onclick="closeModals()" class="btn-outline">Cancelar</button>
-                <button id="btn-confirm-action" style="background: var(--danger); color: white;">Sim, confirmar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-category" class="modal">
-        <div class="glass modal-content">
-            <h3>Nova Categoria</h3>
-            <input type="text" id="new-cat-name" placeholder="Nome da Categoria (Ex: Pet)">
-            <div class="flex-row" style="margin-top: 20px;">
-                <button onclick="closeModals()" class="btn-outline">Cancelar</button>
-                <button onclick="confirmAddCategory()">Criar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-notifications" class="modal">
-        <div class="glass modal-content" style="max-height: 80vh; display: flex; flex-direction: column;">
-            <h3 style="color: var(--primary-gold);">Histórico da Casa 🔔</h3>
-            <div id="notifications-list" style="overflow-y: auto; text-align: left; margin: 15px 0; font-size: 0.85rem; flex: 1;"></div>
-            <button onclick="closeModals()" class="btn-outline">Fechar</button>
-        </div>
-    </div>
-
-    <div id="modal-add" class="modal">
-        <div class="glass modal-content" style="text-align: left;">
-            <h3 id="form-title" style="text-align:center;">Nova Despesa</h3>
-            <input type="hidden" id="edit-id" value="">
-            <input type="text" id="exp-desc" placeholder="Descrição (Ex: Luz, Mercado)">
-            <input type="number" id="exp-val" placeholder="Valor Total (R$)">
-            <div style="display:flex; gap:10px;">
-                <select id="exp-cat"></select>
-                <button onclick="openCategoryModal()" style="width: auto; font-size: 1.5rem; padding: 0 15px;">+</button>
-            </div>
-            <label style="font-size: 0.8rem; color: var(--primary-gold);">Data</label>
-            <input type="date" id="exp-date">
-
-            <div id="parcelas-container">
-                <label style="font-size: 0.8rem; color: var(--primary-gold);">Parcelas</label>
-                <select id="exp-installments">
-                    <option value="1">À vista (1x)</option>
-                    <option value="2">2x</option><option value="3">3x</option><option value="4">4x</option>
-                    <option value="5">5x</option><option value="6">6x</option><option value="12">12x</option>
-                </select>
-            </div>
-
-            <div id="split-options">
-                <label style="font-size: 0.8rem; color: var(--primary-gold);">Divisão</label>
-                <select id="exp-split">
-                    <option value="50">Pagamos juntos (50/50)</option>
-                    <option value="100">Eu paguei tudo (O outro me deve metade)</option>
-                    <option value="-100">O outro pagou tudo (Eu devo metade)</option>
-                    <option value="0">Eu assumi tudo (O outro não deve nada)</option>
-                </select>
-            </div>
-            
-            <div class="flex-row" style="margin-top: 20px;">
-                <button onclick="closeModals()" class="btn-outline">Cancelar</button>
-                <button onclick="handleAddEntry()">Salvar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-alarm" class="modal">
-        <div class="glass modal-content">
-            <h3>Agendar Lembrete ⏰</h3>
-            <input type="text" id="alarm-desc" placeholder="Qual é o lembrete?">
-            <input type="date" id="alarm-date">
-            <input type="time" id="alarm-time">
-            <div class="flex-row" style="margin-top: 15px;">
-                <button onclick="closeModals()" class="btn-outline">Cancelar</button>
-                <button onclick="handleSaveAlarm()">Agendar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-feira-item" class="modal">
-        <div class="glass modal-content">
-            <h3 id="feira-item-title">Adicionar Produto</h3>
-            <input type="hidden" id="feira-edit-id">
-            <input type="text" id="feira-item-name" placeholder="Nome do Produto">
-            <input type="number" id="feira-item-val" placeholder="Valor Unitário (R$)">
-            <input type="number" id="feira-item-qtd" placeholder="Quantidade" value="1">
-            <div class="flex-row" style="margin-top: 20px;">
-                <button onclick="closeModals()" class="btn-outline">Cancelar</button>
-                <button onclick="handleSaveFeiraItem()">Confirmar</button>
-            </div>
-        </div>
-    </div>
+    <div id="modal-confirm" class="modal"><div class="glass modal-content"><h3 id="confirm-title" style="color: var(--danger);">Atenção</h3><p id="confirm-msg" style="margin: 20px 0;">Você tem certeza?</p><div class="flex-row"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button id="btn-confirm-action" style="background: var(--danger); color: white;">Sim, confirmar</button></div></div></div>
+    <div id="modal-category" class="modal"><div class="glass modal-content"><h3>Nova Categoria</h3><input type="text" id="new-cat-name" placeholder="Nome da Categoria (Ex: Pet)"><div class="flex-row" style="margin-top: 20px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="confirmAddCategory()">Criar</button></div></div></div>
+    <div id="modal-notifications" class="modal"><div class="glass modal-content" style="max-height: 80vh; display: flex; flex-direction: column;"><h3 style="color: var(--primary-gold);">Histórico da Casa 🔔</h3><div id="notifications-list" style="overflow-y: auto; text-align: left; margin: 15px 0; font-size: 0.85rem; flex: 1;"></div><button onclick="closeModals()" class="btn-outline">Fechar</button></div></div>
+    <div id="modal-add" class="modal"><div class="glass modal-content" style="text-align: left;"><h3 id="form-title" style="text-align:center;">Nova Despesa</h3><input type="hidden" id="edit-id" value=""><input type="text" id="exp-desc" placeholder="Descrição (Ex: Luz, Mercado)"><input type="number" id="exp-val" placeholder="Valor Total (R$)"><div style="display:flex; gap:10px;"><select id="exp-cat"></select><button onclick="openCategoryModal()" style="width: auto; font-size: 1.5rem; padding: 0 15px;">+</button></div><label style="font-size: 0.8rem; color: var(--primary-gold);">Data</label><input type="date" id="exp-date"><div id="parcelas-container"><label style="font-size: 0.8rem; color: var(--primary-gold);">Parcelas</label><select id="exp-installments"><option value="1">À vista (1x)</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="12">12x</option></select></div><div id="split-options"><label style="font-size: 0.8rem; color: var(--primary-gold);">Divisão</label><select id="exp-split"><option value="50">Pagamos juntos (50/50)</option><option value="100">Eu paguei tudo (O outro me deve metade)</option><option value="-100">O outro pagou tudo (Eu devo metade)</option><option value="0">Eu assumi tudo (O outro não deve nada)</option></select></div><div class="flex-row" style="margin-top: 20px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleAddEntry()">Salvar</button></div></div></div>
+    <div id="modal-alarm" class="modal"><div class="glass modal-content"><h3>Agendar Lembrete ⏰</h3><input type="text" id="alarm-desc" placeholder="Qual é o lembrete?"><input type="date" id="alarm-date"><input type="time" id="alarm-time"><div class="flex-row" style="margin-top: 15px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleSaveAlarm()">Agendar</button></div></div></div>
+    <div id="modal-feira-item" class="modal"><div class="glass modal-content"><h3 id="feira-item-title">Adicionar Produto</h3><input type="hidden" id="feira-edit-id"><input type="text" id="feira-item-name" placeholder="Nome do Produto"><input type="number" id="feira-item-val" placeholder="Valor Unitário (R$)"><input type="number" id="feira-item-qtd" placeholder="Quantidade" value="1"><div class="flex-row" style="margin-top: 20px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleSaveFeiraItem()">Confirmar</button></div></div></div>
 
     <script type="module" src="script.js"></script>
 </body>
