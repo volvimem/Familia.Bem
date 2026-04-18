@@ -108,7 +108,8 @@ window.handleRegister = async function() {
         showToast("✅ Família cadastrada com sucesso!");
     } catch(error) {
         if(error.code === 'auth/email-already-in-use') showToast("❌ Este e-mail já está em uso!", true);
-        else showToast("❌ Erro ao registrar. Verifique o E-mail.", true);
+        else if(error.code === 'auth/invalid-email') showToast("❌ E-mail inválido!", true);
+        else showToast("❌ Erro ao registrar.", true);
     }
 };
 
@@ -121,8 +122,18 @@ window.attemptLogin = async function() {
     try { 
         showToast("⏳ Conectando...");
         await signInWithEmailAndPassword(auth, email, pass); 
+        showToast("✅ Login realizado!");
     } catch(error) { 
-        showToast("❌ E-mail ou senha incorretos!", true); 
+        console.error(error);
+        if(error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+            showToast("❌ Senha incorreta!", true);
+        } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
+            showToast("❌ E-mail não cadastrado ou inválido!", true);
+        } else if (error.code === 'auth/too-many-requests') {
+            showToast("❌ Muitas tentativas. Aguarde um momento.", true);
+        } else {
+            showToast("❌ Erro ao entrar. Verifique os dados.", true);
+        }
     }
 };
 
@@ -174,11 +185,17 @@ window.loginProfile = async function() {
     const pass = document.getElementById('profile-pass').value;
     if(!pass) return showToast("⚠️ Digite a sua senha de perfil!", true);
 
-    const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
-    if(snap.exists() && snap.val().password === pass) {
-        document.getElementById('profile-pass').value = '';
-        enterProfile(selectedRoleToLogin);
-    } else { showToast("❌ Senha do perfil incorreta!", true); }
+    try {
+        const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
+        if(snap.exists() && snap.val().password === pass) {
+            document.getElementById('profile-pass').value = '';
+            enterProfile(selectedRoleToLogin);
+        } else { 
+            showToast("❌ Senha do perfil incorreta!", true); 
+        }
+    } catch(e) {
+        showToast("❌ Erro de conexão com o banco.", true);
+    }
 };
 
 window.openProfileRecovery = function() {
@@ -392,7 +409,7 @@ window.rejectEntry = function(id) {
     if(idx > -1) {
         db.entries[idx].type = 'personal'; 
         db.entries[idx].status = 'approved'; 
-        logNotification(`❌ ${currentUser.toUpperCase()} recusou a despesa "${db.entries[idx].desc}". Ela foi para o painel Pessoal.`);
+        logNotification(`❌ ${currentUser.toUpperCase()} recusou a despesa "${db.entries[idx].desc}". Ela foi para o painel Pessoal do criador.`);
         saveDB(); renderAll(); showToast("❌ Despesa negada!");
     }
 };
@@ -502,12 +519,25 @@ function drawChart(data) {
     let cats = {}; let total = 0; data.forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.val; total += e.val; });
     if(total === 0) { ctx.beginPath(); ctx.arc(80, 80, 75, 0, 2 * Math.PI); ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill(); return; }
     let start = 0; let i = 0;
-    for(let c in cats) { let slice = (cats[c]/total) * 2 * Math.PI; ctx.beginPath(); ctx.moveTo(80,80); ctx.arc(80,80,75,start,start+slice); let color = chartColors[i % chartColors.length]; ctx.fillStyle = color; ctx.fill(); let percent = ((cats[c]/total)*100).toFixed(1); legend.innerHTML += `<div style="font-size:0.75rem; background:rgba(0,0,0,0.2); padding:2px 8px; border-radius:10px; display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; background:${color}; border-radius:50%; display:inline-block;"></span>${c}: ${percent}%</div>`; start += slice; i++; }
+    for(let c in cats) {
+        let slice = (cats[c]/total) * 2 * Math.PI; ctx.beginPath(); ctx.moveTo(80,80); ctx.arc(80,80,75,start,start+slice);
+        let color = chartColors[i % chartColors.length]; ctx.fillStyle = color; ctx.fill();
+        let percent = ((cats[c]/total)*100).toFixed(1);
+        legend.innerHTML += `<div style="font-size:0.75rem; background:rgba(0,0,0,0.2); padding:2px 8px; border-radius:10px; display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; background:${color}; border-radius:50%; display:inline-block;"></span>${c}: ${percent}%</div>`;
+        start += slice; i++;
+    }
 }
 
-setInterval(() => { const now = new Date(); const d = getIsoDate(now); const t = String(now.getHours()).padStart(2,'0') + ":" + String(now.getMinutes()).padStart(2,'0'); db.entries.forEach(e => { if(e.isAlarm && e.date === d && e.time === t && !e.triggered) { sendNotification("⏰ Lembrete!", e.desc); e.triggered = true; saveDB(); } }); }, 60000);
+setInterval(() => {
+    const now = new Date(); const d = getIsoDate(now); const t = String(now.getHours()).padStart(2,'0') + ":" + String(now.getMinutes()).padStart(2,'0');
+    db.entries.forEach(e => {
+        if(e.isAlarm && e.date === d && e.time === t && !e.triggered) {
+            sendNotification("⏰ Lembrete!", e.desc); e.triggered = true; saveDB();
+        }
+    });
+}, 60000);
 
-// --- 7. OBSERVADOR DE AUTENTICAÇÃO (Sempre por último) ---
+// --- 7. OBSERVADOR DE AUTENTICAÇÃO ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
         currentFamilyId = user.uid;
@@ -518,14 +548,11 @@ onAuthStateChanged(auth, (user) => {
             window.showScreen('profile-screen');
         }
     } else {
-        currentFamilyId = null;
-        currentUser = null;
-        localStorage.removeItem('activeProfile');
+        currentFamilyId = null; currentUser = null; localStorage.removeItem('activeProfile');
         window.showScreen('login-screen');
     }
 });
 
-// PWA: Instalação
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
 let deferredPrompt; window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; const btn = document.getElementById('btn-install'); if(btn) btn.style.display = 'inline-block'; });
 window.installApp = function() { if(deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; document.getElementById('btn-install').style.display = 'none'; }); } };
