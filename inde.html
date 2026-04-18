@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanças Premium v7.2</title>
-    
+    <title>Finanças Premium v8.0 (Online)</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
-    
     <meta name="theme-color" content="#0f0c29">
 </head>
 <body>
@@ -15,18 +13,23 @@
     <div id="toast">Ação realizada com sucesso!</div>
 
     <div id="login-screen" class="screen glass active">
-        <h1>Login</h1>
-        <select id="login-user"><option value="marido">Marido</option><option value="esposa">Esposa</option></select>
-        <input type="password" id="login-pass" placeholder="Sua Senha">
+        <h1>Login da Família</h1>
+        <input type="text" id="login-cpf" placeholder="CPF do Casal (somente números)">
+        <select id="login-role">
+            <option value="marido">Entrar como Marido</option>
+            <option value="esposa">Entrar como Esposa</option>
+        </select>
+        <input type="password" id="login-pass" placeholder="Senha">
         <button onclick="attemptLogin()">Entrar</button>
-        <span class="link-text" onclick="showScreen('register-screen')">Criar minha senha</span>
+        <span class="link-text" onclick="showScreen('register-screen')">Cadastrar nossa Família</span>
     </div>
 
     <div id="register-screen" class="screen glass">
-        <h1>Criar Acesso</h1>
-        <select id="reg-user"><option value="marido">Sou o Marido</option><option value="esposa">Sou a Esposa</option></select>
-        <input type="password" id="reg-pass" placeholder="Crie uma senha segura">
-        <button onclick="handleRegister()">Salvar Senha</button>
+        <h1>Criar Conta</h1>
+        <p style="text-align: center; font-size: 0.8rem; margin-bottom: 15px; opacity: 0.8;">Use um CPF para ser o acesso do casal.</p>
+        <input type="text" id="reg-cpf" placeholder="CPF (somente números)">
+        <input type="password" id="reg-pass" placeholder="Crie uma senha (mínimo 6 dígitos)">
+        <button onclick="handleRegister()">Registrar Casal</button>
         <span class="link-text" onclick="showScreen('login-screen')">Voltar para Login</span>
     </div>
 
@@ -115,8 +118,7 @@
     <div id="modal-notifications" class="modal">
         <div class="glass modal-content" style="max-height: 80vh; display: flex; flex-direction: column;">
             <h3 style="color: var(--primary-gold);">Histórico da Casa 🔔</h3>
-            <div id="notifications-list" style="overflow-y: auto; text-align: left; margin: 15px 0; font-size: 0.85rem; flex: 1;">
-                </div>
+            <div id="notifications-list" style="overflow-y: auto; text-align: left; margin: 15px 0; font-size: 0.85rem; flex: 1;"></div>
             <button onclick="closeModals()" class="btn-outline">Fechar</button>
         </div>
     </div>
@@ -187,6 +189,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>
