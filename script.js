@@ -1,7 +1,7 @@
-// --- IMPORTAÇÃO DOS MÓDULOS DO FIREBASE AUTH E DATABASE V10 ---
+// --- IMPORTAÇÃO DOS MÓDULOS DO FIREBASE V10 ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
-import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDlb1GCYz9ztCSPnKxit7Puzk2SYrHjFOY",
@@ -20,14 +20,15 @@ const dbFirebase = getDatabase(app);
 // --- ESTADOS DO APLICATIVO ---
 let currentFamilyId = null; 
 let currentUser = null; 
+let selectedRoleToLogin = null; // Guarda quem está tentando entrar na área privada
 let currentView = 'home';
 let currentDate = new Date(); 
 let selectedDate = new Date(); 
 const chartColors = ['#d4af37', '#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1c40f', '#1abc9c'];
 
-let db = { categories: [], entries: [], feiraItems: [], notificationsLog: [], cpfs: {} };
+let db = { categories: [], entries: [], feiraItems: [], notificationsLog: [], cpfs: {}, profiles: {} };
 
-// --- 1. FUNÇÕES DE INTERFACE (Devem carregar primeiro) ---
+// --- 1. FUNÇÕES GERAIS E UI ---
 window.showScreen = function(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
@@ -57,7 +58,11 @@ window.showConfirmModal = function(title, msg, onConfirm) {
     document.getElementById('modal-confirm').classList.add('active');
 };
 
-// --- 2. FUNÇÕES DO BANCO DE DADOS ---
+function getIsoDate(dateObj) { 
+    return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`; 
+}
+
+// --- 2. BANCO DE DADOS (FAMÍLIA E PERFIS) ---
 function saveDB() {
     if (currentFamilyId) set(ref(dbFirebase, 'couples/' + currentFamilyId), db);
 }
@@ -71,19 +76,16 @@ function listenToCoupleData() {
             if (!db.entries) db.entries = [];
             if (!db.feiraItems) db.feiraItems = [];
             if (!db.notificationsLog) db.notificationsLog = [];
+            if (!db.profiles) db.profiles = {};
         } else {
-            db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: {} };
+            db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: {}, profiles: {} };
             saveDB();
         }
         updateCategorySelect(); renderAll();
     });
 }
 
-function getIsoDate(dateObj) { 
-    return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`; 
-}
-
-// --- 3. FIREBASE AUTH (LOGIN E CADASTRO) ---
+// --- 3. FIREBASE AUTH (LOGIN GERAL DA FAMÍLIA) ---
 window.handleRegister = async function() {
     const email = document.getElementById('reg-email').value.trim();
     const pass = document.getElementById('reg-pass').value;
@@ -97,7 +99,7 @@ window.handleRegister = async function() {
         const userCred = await createUserWithEmailAndPassword(auth, email, pass);
         currentFamilyId = userCred.user.uid;
         
-        db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: { titular: cpf1, conjuge: cpf2 } };
+        db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: { titular: cpf1, conjuge: cpf2 }, profiles: {} };
         saveDB();
 
         showToast("Família cadastrada com sucesso!");
@@ -126,32 +128,95 @@ window.handleForgotPassword = async function() {
 
     try {
         await sendPasswordResetEmail(auth, email);
-        showToast("Link de recuperação enviado para o seu E-mail!");
+        showToast("Link enviado para o e-mail da Família!");
         window.showScreen('login-screen');
     } catch(error) {
         showToast("Erro ao enviar. Verifique o E-mail digitado.", true);
     }
 };
 
-window.logout = async function() {
-    window.showConfirmModal("Sair da Conta", "Deseja encerrar sua sessão?", async () => {
+window.logoutFamily = async function() {
+    window.showConfirmModal("Sair da Família", "Deseja deslogar totalmente a família do aplicativo?", async () => {
         await signOut(auth);
     });
 };
 
-// --- 4. SELEÇÃO DE PERFIL ---
-window.selectProfile = function(role) {
+// --- 4. SISTEMA DE PERFIS (ÁREA PRIVADA COM SENHA INDIVIDUAL) ---
+window.selectProfile = async function(role) {
+    selectedRoleToLogin = role;
+    document.getElementById('profile-login-pass') ? document.getElementById('profile-login-pass').value = '' : null;
+    
+    try {
+        const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}`));
+        if (snap.exists() && snap.val().password) {
+            // Se já tem senha, manda para o login privado do perfil
+            document.getElementById('profile-login-title').innerText = `Login de Segurança - ${role.charAt(0).toUpperCase() + role.slice(1)}`;
+            window.showScreen('profile-login-screen');
+        } else {
+            // Primeiro acesso do perfil: Criar a senha privada
+            document.getElementById('profile-setup-title').innerText = `Criar Senha - ${role.charAt(0).toUpperCase() + role.slice(1)}`;
+            window.showScreen('profile-setup-screen');
+        }
+    } catch(e) {
+        showToast("Erro ao conectar no perfil", true);
+    }
+};
+
+window.setupProfile = async function() {
+    const pass = document.getElementById('setup-profile-pass').value;
+    const phrase = document.getElementById('setup-profile-phrase').value.trim();
+    if(!pass || !phrase) return showToast("Preencha a senha e a frase de segurança!", true);
+
+    await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`), { password: pass, phrase: phrase });
+    
+    showToast("Senha privada criada!");
+    enterProfile(selectedRoleToLogin);
+};
+
+window.loginProfile = async function() {
+    const pass = document.getElementById('profile-pass').value;
+    if(!pass) return showToast("Digite a sua senha de perfil!", true);
+
+    const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
+    if(snap.exists() && snap.val().password === pass) {
+        document.getElementById('profile-pass').value = '';
+        enterProfile(selectedRoleToLogin);
+    } else {
+        showToast("Senha do perfil incorreta!", true);
+    }
+};
+
+window.recoverProfile = async function() {
+    const phrase = document.getElementById('forgot-profile-phrase').value.trim();
+    const newPass = document.getElementById('forgot-profile-new-pass').value;
+    if(!phrase || !newPass) return showToast("Preencha a frase e a nova senha!", true);
+
+    const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
+    if(snap.exists() && snap.val().phrase.toLowerCase() === phrase.toLowerCase()) {
+        await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}/password`), newPass);
+        showToast("Senha privada alterada com sucesso!");
+        window.showScreen('profile-login-screen');
+    } else {
+        showToast("Frase de segurança incorreta!", true);
+    }
+};
+
+function enterProfile(role) {
     currentUser = role;
-    localStorage.setItem('activeProfile', role); 
+    // O aplicativo salva no navegador que esse usuário tem sessão aberta
+    localStorage.setItem('activeProfile', role);
     document.getElementById('display-user').innerText = role;
     window.showScreen('main-screen');
     listenToCoupleData();
     if ("Notification" in window) Notification.requestPermission().then(p => { if (p === "granted") checkTodayInstallments(); });
-};
+}
 
-window.switchProfile = function() {
-    localStorage.removeItem('activeProfile');
-    window.showScreen('profile-screen');
+window.logoutProfile = function() {
+    window.showConfirmModal("Sair do Perfil", "Tem certeza que deseja sair da sua área privada?", () => {
+        currentUser = null;
+        localStorage.removeItem('activeProfile');
+        window.showScreen('profile-screen');
+    });
 };
 
 // --- 5. LOG E AVISOS ---
@@ -166,7 +231,6 @@ window.openNotifications = function() {
     const list = document.getElementById('notifications-list'); list.innerHTML = '';
     if (!db.notificationsLog || db.notificationsLog.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5;">Nenhuma atividade recente.</p>';
     else db.notificationsLog.forEach(log => { list.innerHTML += `<div class="log-item"><span class="log-time">${log.time}</span>${log.text}</div>`; });
-    window.showScreen('modal-notifications'); // Hack for opening modal correctly if using showScreen
     document.getElementById('modal-notifications').classList.add('active');
 };
 
