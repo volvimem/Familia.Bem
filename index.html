@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>Finanças Premium v10</title>
+    <title>Finanças Premium v11</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
     <meta name="theme-color" content="#0f0c29">
@@ -142,10 +142,25 @@
     </div>
 
     <div id="feira-screen" class="screen" style="max-width: 800px;"><div class="feira-header glass"><button class="btn-outline" onclick="closeFeiraScreen()" style="width: auto; padding: 5px 15px;">❮ Voltar</button><h3 style="margin: 0;">Carrinho de Feira</h3><button class="btn-outline" onclick="clearFeira()" style="width: auto; padding: 5px 15px; color: var(--danger); border-color: var(--danger);">Limpar</button></div><div class="glass"><div class="feira-total-display">R$ <span id="feira-total-val">0.00</span></div></div><div class="glass" id="feira-list-container" style="margin-top: 15px;"></div><div class="fab" onclick="openFeiraItemModal()" style="background: var(--success); color: white;">+</div></div>
-    <div id="modal-notifications" class="modal" style="z-index: 999;"><div class="glass modal-content" style="max-height: 80vh; display: flex; flex-direction: column;"><h3 style="color: var(--primary-gold);">Histórico da Casa 🔔</h3><div id="notifications-list" style="overflow-y: auto; text-align: left; margin: 15px 0; font-size: 0.85rem; flex: 1;"></div><button onclick="closeModals()" class="btn-outline">Fechar</button></div></div>
-    <div id="modal-feira-item" class="modal" style="z-index: 999;"><div class="glass modal-content"><h3 id="feira-item-title">Adicionar Produto</h3><input type="hidden" id="feira-edit-id"><input type="text" id="feira-item-name" placeholder="Nome do Produto"><input type="number" id="feira-item-val" placeholder="Valor Unitário (R$)"><input type="number" id="feira-item-qtd" placeholder="Quantidade" value="1"><div class="flex-row" style="margin-top: 20px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleSaveFeiraItem()">Confirmar</button></div></div></div>
-    <div id="modal-alarm" class="modal" style="z-index: 999;"><div class="glass modal-content"><h3>Agendar Lembrete ⏰</h3><input type="text" id="alarm-desc" placeholder="Qual é o lembrete?"><input type="date" id="alarm-date"><input type="time" id="alarm-time"><div class="flex-row" style="margin-top: 15px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleSaveAlarm()">Agendar</button></div></div></div>
     
+    <div id="modal-notifications" class="modal" style="z-index: 999;"><div class="glass modal-content" style="max-height: 80vh; display: flex; flex-direction: column;"><h3 style="color: var(--primary-gold);">Histórico da Casa 🔔</h3><div id="notifications-list" style="overflow-y: auto; text-align: left; margin: 15px 0; font-size: 0.85rem; flex: 1;"></div><button onclick="closeModals()" class="btn-outline">Fechar</button></div></div>
+    
+    <div id="modal-approval-popup" class="modal" style="z-index: 1005;">
+        <div class="glass modal-content">
+            <h3 style="color: var(--primary-gold);">Aprovação Pendente 🔔</h3>
+            <div id="approval-popup-content" style="margin: 15px 0; font-size: 0.95rem; text-align: left; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px;">
+                </div>
+            <div class="flex-row">
+                <button id="btn-reject-popup" class="btn-outline" style="color: var(--danger); border-color: var(--danger);">Recusar</button>
+                <button id="btn-approve-popup" style="background: var(--success); color: white;">Aprovar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-feira-item" class="modal" style="z-index: 999;"><div class="glass modal-content"><h3 id="feira-item-title">Adicionar Produto</h3><input type="hidden" id="feira-edit-id"><input type="text" id="feira-item-name" placeholder="Nome do Produto"><input type="number" id="feira-item-val" placeholder="Valor Unitário (R$)"><input type="number" id="feira-item-qtd" placeholder="Quantidade" value="1"><div class="flex-row" style="margin-top: 20px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleSaveFeiraItem()">Confirmar</button></div></div></div>
+    
+    <div id="modal-alarm" class="modal" style="z-index: 999;"><div class="glass modal-content"><h3>Agendar Lembrete ⏰</h3><input type="text" id="alarm-desc" placeholder="Qual é o lembrete?"><input type="date" id="alarm-date"><input type="time" id="alarm-time"><div class="flex-row" style="margin-top: 15px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleSaveAlarm()">Agendar</button></div></div></div>
+
     <div id="modal-add" class="modal" style="z-index: 999;">
         <div class="glass modal-content" style="text-align: left;">
             <h3 id="form-title" style="text-align:center;">Nova Despesa</h3>
@@ -156,16 +171,13 @@
                 <select id="exp-cat"></select>
                 <button onclick="openCategoryModal()" style="width: auto; font-size: 1.5rem; padding: 0 15px;">+</button>
             </div>
-            
             <label style="font-size: 0.8rem; color: var(--primary-gold); display: block; margin-top: 10px;">Data da Compra</label>
             <input type="date" id="exp-date">
-            
             <label style="font-size: 0.8rem; color: var(--info); display: block; margin-top: 10px;">Agendar Alarme para Pagar? (Opcional)</label>
             <div style="display: flex; gap: 10px;">
                 <input type="date" id="exp-alarm-date" style="flex: 2;">
                 <input type="time" id="exp-alarm-time" style="flex: 1;">
             </div>
-
             <div id="parcelas-container">
                 <label style="font-size: 0.8rem; color: var(--primary-gold); display: block; margin-top: 10px;">Parcelas</label>
                 <select id="exp-installments">
@@ -183,27 +195,22 @@
         </div>
     </div>
 
-    <div id="modal-category" class="modal" style="z-index: 1000;">
-        <div class="glass modal-content">
-            <h3>Nova Categoria</h3>
-            <input type="text" id="new-cat-name" placeholder="Nome da Categoria (Ex: Pet)">
-            <div class="flex-row" style="margin-top: 20px;">
-                <button onclick="closeCategoryModal()" class="btn-outline">Cancelar</button>
-                <button onclick="confirmAddCategory()">Criar</button>
-            </div>
-        </div>
-    </div>
-
+    <div id="modal-category" class="modal" style="z-index: 1000;"><div class="glass modal-content"><h3>Nova Categoria</h3><input type="text" id="new-cat-name" placeholder="Nome da Categoria (Ex: Pet)"><div class="flex-row" style="margin-top: 20px;"><button onclick="closeCategoryModal()" class="btn-outline">Cancelar</button><button onclick="confirmAddCategory()">Criar</button></div></div></div>
+    
     <div id="modal-confirm" class="modal" style="z-index: 1010;"><div class="glass modal-content"><h3 id="confirm-title" style="color: var(--danger);">Atenção</h3><p id="confirm-msg" style="margin: 20px 0;">Você tem certeza?</p><div class="flex-row"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button id="btn-confirm-action" style="background: var(--danger); color: white;">Sim, confirmar</button></div></div></div>
 
     <script>
-        window.addEventListener('error', function(e) {
+        const versaoAtual = new Date().getTime();
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = 'script.js?v=' + versaoAtual;
+        script.onerror = function() {
             const t = document.getElementById('toast');
-            t.innerText = "Erro ao carregar o sistema. Atualize a página.";
+            t.innerText = "Erro ao carregar o sistema. Verifique a internet.";
             t.style.backgroundColor = 'var(--danger)';
             t.className = "show";
-        });
+        };
+        document.body.appendChild(script);
     </script>
-    <script type="module" src="script.js?v=10"></script>
 </body>
 </html>
