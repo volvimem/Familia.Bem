@@ -74,12 +74,13 @@
         /* FAB */
         .fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: var(--primary-gold); color: #111; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); cursor: pointer; z-index: 100; }
 
-        /* Modal & Toast */
+        /* Modal & Toast Seguros (Para nada ficar escondido) */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; justify-content: center; align-items: center; padding: 15px; }
         .modal.active { display: flex; }
         .modal-content { max-width: 400px; width: 100%; max-height: 90vh; overflow-y: auto; text-align: center; }
+        #modal-confirm { z-index: 9999 !important; }
         
-        #toast { visibility: hidden; min-width: 250px; background-color: var(--success); color: #fff; text-align: center; border-radius: 12px; padding: 15px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); }
+        #toast { visibility: hidden; min-width: 250px; background-color: var(--success); color: #fff; text-align: center; border-radius: 12px; padding: 15px; position: fixed; z-index: 99999 !important; left: 50%; bottom: 30px; transform: translateX(-50%); box-shadow: 0 4px 15px rgba(0,0,0,0.6); }
         #toast.show { visibility: visible; animation: fadein 0.4s, fadeout 0.4s 2.5s; }
         @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
         @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
@@ -216,10 +217,10 @@
         <div class="fab" onclick="openFeiraItemModal()" style="background: var(--success); color: white;">+</div>
     </div>
 
-    <div id="modal-confirm" class="modal" style="z-index: 9999;">
+    <div id="modal-confirm" class="modal">
         <div class="glass modal-content">
             <h3 id="confirm-title" style="color: var(--danger);">Confirmar</h3>
-            <p id="confirm-msg" style="margin: 20px 0;"></p>
+            <p id="confirm-msg" style="margin: 20px 0; font-size: 1.1rem;"></p>
             <div style="display:flex; gap:10px;">
                 <button onclick="closeModals()" class="btn-outline">Não</button>
                 <button id="btn-confirm-action" style="background: var(--danger); color: white;">Sim</button>
@@ -231,32 +232,25 @@
         <div class="glass modal-content">
             <h3 id="form-title">Nova Despesa</h3>
             <input type="hidden" id="edit-id">
-            <input type="text" id="exp-desc" placeholder="Descrição">
-            <input type="number" id="exp-val" placeholder="Valor Total">
+            <input type="text" id="exp-desc" placeholder="Descrição da conta">
+            <input type="number" step="0.01" id="exp-val" placeholder="Valor Total (R$)">
             
             <div style="display:flex; gap:5px;">
                 <select id="exp-cat"></select>
                 <button onclick="openCategoryModal()" style="width: 50px;">+</button>
             </div>
             
-            <label style="font-size: 0.75rem; color: var(--primary-gold); text-align: left; display: block; margin-top: 5px;">Data da Compra/Vencimento</label>
+            <label style="font-size: 0.75rem; color: var(--primary-gold); text-align: left; display: block; margin-top: 5px;">Data</label>
             <input type="date" id="exp-date">
             
             <div id="parcelas-container">
                 <label style="font-size: 0.75rem; color: var(--primary-gold); text-align: left; display: block; margin-top: 5px;">Parcelas</label>
                 <select id="exp-installments">
                     <option value="1">1x (À vista)</option>
-                    <option value="2">2x</option>
-                    <option value="3">3x</option>
-                    <option value="4">4x</option>
-                    <option value="5">5x</option>
-                    <option value="6">6x</option>
-                    <option value="7">7x</option>
-                    <option value="8">8x</option>
-                    <option value="9">9x</option>
-                    <option value="10">10x</option>
-                    <option value="11">11x</option>
-                    <option value="12">12x</option>
+                    <option value="2">2x</option><option value="3">3x</option><option value="4">4x</option>
+                    <option value="5">5x</option><option value="6">6x</option><option value="7">7x</option>
+                    <option value="8">8x</option><option value="9">9x</option><option value="10">10x</option>
+                    <option value="11">11x</option><option value="12">12x</option>
                 </select>
             </div>
             
@@ -280,15 +274,20 @@
 
     <div id="modal-pet-log" class="modal">
         <div class="glass modal-content">
-            <h3 style="color: var(--primary-gold);">Histórico dos Pets 🐾</h3>
-            <div style="display:flex; gap: 10px; margin-bottom: 15px;">
-                <input type="text" id="pet-log-desc" placeholder="Ex: Vacina, Banho...">
+            <h3 style="color: var(--primary-gold);">Despesas dos Pets 🐾</h3>
+            
+            <div style="display:flex; gap: 5px; margin-bottom: 10px;">
+                <input type="text" id="pet-log-desc" placeholder="Ex: Ração, Vacina">
+                <input type="number" step="0.01" id="pet-log-val" placeholder="R$" style="width: 100px;">
                 <button onclick="addPetLog()" style="width: 50px; font-size: 1.5rem;">+</button>
             </div>
+            
+            <input type="text" id="pet-search" placeholder="🔍 Buscar no histórico..." onkeyup="renderPetLog()" style="margin-bottom: 15px; border: 1px solid var(--primary-gold);">
+
             <div id="pet-log-list" style="max-height: 250px; overflow-y: auto; text-align: left; padding-right: 5px;"></div>
+            
             <div style="display:flex; gap:10px; margin-top: 15px;">
                 <button onclick="closeModals()" class="btn-outline">Fechar</button>
-                <button id="btn-clear-pet-log" onclick="clearPetLog()" style="background: var(--danger); color: white; display: none;">🗑️ Apagar Tudo</button>
             </div>
         </div>
     </div>
@@ -311,7 +310,7 @@
             <h3>Item Carrinho</h3>
             <input type="hidden" id="feira-edit-id">
             <input type="text" id="feira-item-name" placeholder="Produto">
-            <input type="number" id="feira-item-val" placeholder="Valor Unitário">
+            <input type="number" step="0.01" id="feira-item-val" placeholder="Valor Unitário (R$)">
             <input type="number" id="feira-item-qtd" value="1" placeholder="Qtd">
             <div style="display:flex; gap:10px; margin-top:15px;">
                 <button onclick="closeModals()" class="btn-outline">Cancelar</button>
@@ -322,21 +321,20 @@
 
     <div id="modal-notifications" class="modal">
         <div class="glass modal-content">
-            <h3 style="color: var(--primary-gold);">Atividade Recente 🔔</h3>
+            <h3 style="color: var(--primary-gold);">Atividades 🔔</h3>
             <div id="notifications-list" style="max-height: 250px; overflow-y: auto; text-align: left; padding-right: 5px;"></div>
             
             <div style="display:flex; gap:10px; margin-top:15px;">
                 <button onclick="closeModals()" class="btn-outline">Fechar</button>
-                <button id="btn-clear-notifications" onclick="clearNotifications()" style="background: var(--danger); color: white; display: none;">🗑️ Apagar Tudo</button>
+                <button id="btn-clear-notifications" onclick="clearNotifications()" style="background: var(--danger); color: white; display: none;">🗑️ Limpar</button>
             </div>
         </div>
     </div>
 
     <div id="modal-approval-popup" class="modal">
         <div class="glass modal-content">
-            <h3>Nova Despesa Casa</h3>
             <div id="approval-popup-content"></div>
-            <div style="display:flex; gap:10px;">
+            <div style="display:flex; gap:10px; margin-top: 15px;">
                 <button id="btn-reject-popup" style="background: var(--danger); color: white;">Recusar</button>
                 <button id="btn-approve-popup" style="background: var(--success); color: white;">Aprovar</button>
             </div>
@@ -346,7 +344,7 @@
     <div id="modal-category" class="modal">
         <div class="glass modal-content">
             <h3>Nova Categoria</h3>
-            <input type="text" id="new-cat-name" placeholder="Nome">
+            <input type="text" id="new-cat-name" placeholder="Nome da Categoria">
             <div style="display:flex; gap:10px; margin-top: 15px;">
                 <button onclick="closeCategoryModal()" class="btn-outline">Voltar</button>
                 <button onclick="confirmAddCategory()">Adicionar</button>
