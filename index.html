@@ -187,10 +187,10 @@
         </div>
 
         <div class="summary-grid">
-            <div class="card glass" id="card-marido"><span id="label-marido">Total Marido</span><strong id="stat-m">R$ 0</strong></div>
-            <div class="card glass" id="card-esposa">Total Esposa<strong id="stat-e">R$ 0</strong></div>
+            <div class="card glass" id="card-marido"><span id="label-marido">Total Marido</span><strong id="stat-m">R$ 0,00</strong></div>
+            <div class="card glass" id="card-esposa">Total Esposa<strong id="stat-e">R$ 0,00</strong></div>
             <div id="card-balance" class="card glass" style="grid-column: span 2;">
-                Situação: <strong id="stat-balance">R$ 0</strong>
+                Situação: <strong id="stat-balance">R$ 0,00</strong>
             </div>
         </div>
 
@@ -210,7 +210,7 @@
             <button onclick="clearFeira()" style="width: auto; background: var(--danger); color: white; padding: 5px 15px;">Limpar</button>
         </div>
         <div class="glass" style="text-align: center; margin-bottom: 15px;">
-            <h2 style="color: var(--success);">R$ <span id="feira-total-val">0.00</span></h2>
+            <h2 style="color: var(--success);">R$ <span id="feira-total-val">0,00</span></h2>
         </div>
         <div id="feira-list-container"></div>
         <div class="fab" onclick="openFeiraItemModal()" style="background: var(--success); color: white;">+</div>
@@ -233,17 +233,30 @@
             <input type="hidden" id="edit-id">
             <input type="text" id="exp-desc" placeholder="Descrição">
             <input type="number" id="exp-val" placeholder="Valor Total">
+            
             <div style="display:flex; gap:5px;">
                 <select id="exp-cat"></select>
                 <button onclick="openCategoryModal()" style="width: 50px;">+</button>
             </div>
+            
+            <label style="font-size: 0.75rem; color: var(--primary-gold); text-align: left; display: block; margin-top: 5px;">Data da Compra/Vencimento</label>
             <input type="date" id="exp-date">
             
             <div id="parcelas-container">
                 <label style="font-size: 0.75rem; color: var(--primary-gold); text-align: left; display: block; margin-top: 5px;">Parcelas</label>
                 <select id="exp-installments">
                     <option value="1">1x (À vista)</option>
-                    <option value="2">2x</option><option value="3">3x</option><option value="6">6x</option><option value="12">12x</option>
+                    <option value="2">2x</option>
+                    <option value="3">3x</option>
+                    <option value="4">4x</option>
+                    <option value="5">5x</option>
+                    <option value="6">6x</option>
+                    <option value="7">7x</option>
+                    <option value="8">8x</option>
+                    <option value="9">9x</option>
+                    <option value="10">10x</option>
+                    <option value="11">11x</option>
+                    <option value="12">12x</option>
                 </select>
             </div>
             
@@ -251,11 +264,14 @@
                 <label style="font-size: 0.75rem; color: var(--primary-gold); text-align: left; display: block; margin-top: 5px;">Como dividir?</label>
                 <select id="exp-split"></select>
             </div>
+            
+            <label style="font-size: 0.75rem; color: var(--primary-gold); text-align: left; display: block; margin-top: 5px;">Despertador (Opcional)</label>
             <div style="display:flex; gap:5px;">
                 <input type="date" id="exp-alarm-date">
                 <input type="time" id="exp-alarm-time">
             </div>
-            <div style="display:flex; gap:10px; margin-top:10px;">
+            
+            <div style="display:flex; gap:10px; margin-top:15px;">
                 <button onclick="closeModals()" class="btn-outline">Sair</button>
                 <button onclick="handleAddEntry()">Salvar</button>
             </div>
@@ -269,10 +285,10 @@
                 <input type="text" id="pet-log-desc" placeholder="Ex: Vacina, Banho...">
                 <button onclick="addPetLog()" style="width: 50px; font-size: 1.5rem;">+</button>
             </div>
-            <div id="pet-log-list" style="max-height: 250px; overflow-y: auto; text-align: left;"></div>
+            <div id="pet-log-list" style="max-height: 250px; overflow-y: auto; text-align: left; padding-right: 5px;"></div>
             <div style="display:flex; gap:10px; margin-top: 15px;">
                 <button onclick="closeModals()" class="btn-outline">Fechar</button>
-                <button id="btn-clear-pet-log" onclick="clearPetLog()" style="background: var(--danger); color: white; display: none;">🗑️ Apagar Histórico</button>
+                <button id="btn-clear-pet-log" onclick="clearPetLog()" style="background: var(--danger); color: white; display: none;">🗑️ Apagar Tudo</button>
             </div>
         </div>
     </div>
@@ -283,8 +299,10 @@
             <input type="text" id="alarm-desc" placeholder="O que lembrar?">
             <input type="date" id="alarm-date">
             <input type="time" id="alarm-time">
-            <button onclick="handleSaveAlarm()">Agendar</button>
-            <button onclick="closeModals()" class="btn-outline">Sair</button>
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button onclick="closeModals()" class="btn-outline">Sair</button>
+                <button onclick="handleSaveAlarm()">Agendar</button>
+            </div>
         </div>
     </div>
 
@@ -295,16 +313,22 @@
             <input type="text" id="feira-item-name" placeholder="Produto">
             <input type="number" id="feira-item-val" placeholder="Valor Unitário">
             <input type="number" id="feira-item-qtd" value="1" placeholder="Qtd">
-            <button onclick="handleSaveFeiraItem()">Adicionar</button>
-            <button onclick="closeModals()" class="btn-outline">Cancelar</button>
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button onclick="closeModals()" class="btn-outline">Cancelar</button>
+                <button onclick="handleSaveFeiraItem()">Adicionar</button>
+            </div>
         </div>
     </div>
 
     <div id="modal-notifications" class="modal">
         <div class="glass modal-content">
-            <h3>Atividade</h3>
-            <div id="notifications-list"></div>
-            <button onclick="closeModals()">Fechar</button>
+            <h3 style="color: var(--primary-gold);">Atividade Recente 🔔</h3>
+            <div id="notifications-list" style="max-height: 250px; overflow-y: auto; text-align: left; padding-right: 5px;"></div>
+            
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button onclick="closeModals()" class="btn-outline">Fechar</button>
+                <button id="btn-clear-notifications" onclick="clearNotifications()" style="background: var(--danger); color: white; display: none;">🗑️ Apagar Tudo</button>
+            </div>
         </div>
     </div>
 
@@ -323,8 +347,10 @@
         <div class="glass modal-content">
             <h3>Nova Categoria</h3>
             <input type="text" id="new-cat-name" placeholder="Nome">
-            <button onclick="confirmAddCategory()">Adicionar</button>
-            <button onclick="closeCategoryModal()" class="btn-outline">Voltar</button>
+            <div style="display:flex; gap:10px; margin-top: 15px;">
+                <button onclick="closeCategoryModal()" class="btn-outline">Voltar</button>
+                <button onclick="confirmAddCategory()">Adicionar</button>
+            </div>
         </div>
     </div>
 
