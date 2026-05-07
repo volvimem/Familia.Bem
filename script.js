@@ -49,7 +49,6 @@ function showToast(msg, isError = false) {
     setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
 }
 
-// CORREÇÃO: Formata moeda para padrão Brasileiro (Ex: 1.500,50)
 window.formatCurrency = function(value) {
     return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
@@ -80,7 +79,7 @@ function listenToCoupleData() {
         if (data) {
             db = data;
             if (!db.categories) db.categories = ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'];
-            if (!db.categories.includes('Pet')) db.categories.push('Pet'); // Categoria Pet nativa!
+            if (!db.categories.includes('Pet')) db.categories.push('Pet');
             if (!db.entries) db.entries = [];
             if (!db.feiraItems) db.feiraItems = [];
             if (!db.notificationsLog) db.notificationsLog = [];
@@ -112,9 +111,7 @@ window.handleRegister = async function() {
         db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado', 'Pet'], entries: [], feiraItems: [], notificationsLog: [], cpfs: { titular: cpf1, conjuge: cpf2 }, profiles: {} };
         saveDB();
         showToast("✅ Família cadastrada com sucesso!");
-    } catch(error) {
-        showToast("❌ Erro ao registrar. Verifique os dados.", true);
-    }
+    } catch(error) { showToast("❌ Erro ao registrar. Verifique os dados.", true); }
 };
 
 window.attemptLogin = async function() {
@@ -124,25 +121,17 @@ window.attemptLogin = async function() {
     try { 
         showToast("⏳ Conectando...");
         await signInWithEmailAndPassword(auth, email, pass); 
-    } catch(error) { 
-        showToast("❌ Erro ao entrar. Verifique os dados.", true);
-    }
+    } catch(error) { showToast("❌ Erro ao entrar. Verifique os dados.", true); }
 };
 
 window.handleForgotPassword = async function() {
     const email = document.getElementById('forgot-email').value.trim();
     if(!email) return showToast("⚠️ Digite o e-mail da conta!", true);
-    try {
-        await sendPasswordResetEmail(auth, email);
-        showToast("📧 Link enviado para o e-mail da Família!");
-        window.showScreen('login-screen');
-    } catch(error) { showToast("❌ Erro ao enviar.", true); }
+    try { await sendPasswordResetEmail(auth, email); showToast("📧 Link enviado para o e-mail da Família!"); window.showScreen('login-screen'); } catch(error) { showToast("❌ Erro ao enviar.", true); }
 };
 
 window.logoutFamily = function() {
-    window.showConfirmModal("Sair da Família", "Deseja deslogar totalmente a família do aplicativo?", async () => {
-        await signOut(auth);
-    });
+    window.showConfirmModal("Sair da Família", "Deseja deslogar totalmente a família do aplicativo?", async () => { await signOut(auth); });
 };
 
 window.selectProfile = async function(role) {
@@ -165,8 +154,7 @@ window.setupProfile = async function() {
     const phrase = document.getElementById('setup-profile-phrase').value.trim();
     if(!pass || !phrase) return showToast("⚠️ Preencha a senha e a frase de segurança!", true);
     await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`), { password: pass, phrase: phrase });
-    showToast("✅ Senha privada criada!");
-    enterProfile(selectedRoleToLogin);
+    showToast("✅ Senha privada criada!"); enterProfile(selectedRoleToLogin);
 };
 
 window.loginProfile = async function() {
@@ -175,17 +163,13 @@ window.loginProfile = async function() {
     try {
         const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
         if(snap.exists() && snap.val().password === pass) {
-            document.getElementById('profile-pass').value = '';
-            enterProfile(selectedRoleToLogin);
+            document.getElementById('profile-pass').value = ''; enterProfile(selectedRoleToLogin);
         } else { showToast("❌ Senha do perfil incorreta!", true); }
     } catch(e) { showToast("❌ Erro de conexão com o banco.", true); }
 };
 
 window.openProfileRecovery = function() {
-    document.getElementById('forgot-profile-phrase').value = '';
-    document.getElementById('forgot-profile-new-pass').value = '';
-    document.getElementById('forgot-profile-family-pass').value = '';
-    window.showScreen('profile-forgot-screen');
+    document.getElementById('forgot-profile-phrase').value = ''; document.getElementById('forgot-profile-new-pass').value = ''; document.getElementById('forgot-profile-family-pass').value = ''; window.showScreen('profile-forgot-screen');
 };
 
 window.recoverProfile = async function() {
@@ -195,9 +179,7 @@ window.recoverProfile = async function() {
     if(!phrase || !newPass) return showToast("⚠️ Preencha a frase e a nova senha!", true);
     const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}`));
     if(snap.exists() && snap.val().phrase.toLowerCase() === phrase.toLowerCase()) {
-        await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}/password`), newPass);
-        showToast("✅ Senha do perfil alterada!");
-        window.showScreen('profile-screen');
+        await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}/password`), newPass); showToast("✅ Senha do perfil alterada!"); window.showScreen('profile-screen');
     } else { showToast("❌ Frase incorreta!", true); }
 };
 
@@ -208,26 +190,18 @@ window.recoverProfileWithFamilyPass = async function() {
     if(!familyPass || !newPass) return showToast("⚠️ Preencha a senha da família e a nova senha!", true);
     try {
         await signInWithEmailAndPassword(auth, auth.currentUser.email, familyPass); 
-        await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}/password`), newPass);
-        showToast("✅ Senha do perfil alterada!");
-        window.showScreen('profile-screen');
+        await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}/password`), newPass); showToast("✅ Senha do perfil alterada!"); window.showScreen('profile-screen');
     } catch(error) { showToast("❌ Senha da Família incorreta!", true); }
 };
 
 function enterProfile(role) {
-    currentUser = role;
-    localStorage.setItem('activeProfile', role); 
-    document.getElementById('display-user').innerText = role;
-    window.showScreen('main-screen');
-    listenToCoupleData();
+    currentUser = role; localStorage.setItem('activeProfile', role); document.getElementById('display-user').innerText = role; window.showScreen('main-screen'); listenToCoupleData();
     if ("Notification" in window) Notification.requestPermission().then(p => { if (p === "granted") checkTodayInstallments(); });
 }
 
 window.logoutProfile = function() {
     window.showConfirmModal("Sair do Perfil", "Deseja sair da sua área privada?", () => {
-        currentUser = null;
-        localStorage.removeItem('activeProfile');
-        window.showScreen('profile-screen');
+        currentUser = null; localStorage.removeItem('activeProfile'); window.showScreen('profile-screen');
     });
 };
 
@@ -241,16 +215,11 @@ function logNotification(text) {
 
 window.openNotifications = function() {
     const list = document.getElementById('notifications-list'); list.innerHTML = '';
-    if (!db.notificationsLog || db.notificationsLog.length === 0) {
-        list.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:10px;">Nenhuma atividade recente.</p>';
-    } else {
-        db.notificationsLog.forEach(log => { list.innerHTML += `<div class="log-item"><span class="log-time">${log.time}</span>${log.text}</div>`; });
-    }
+    if (!db.notificationsLog || db.notificationsLog.length === 0) { list.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:10px;">Nenhuma atividade recente.</p>'; } 
+    else { db.notificationsLog.forEach(log => { list.innerHTML += `<div class="log-item"><span class="log-time">${log.time}</span>${log.text}</div>`; }); }
     
-    // Regra da Lixeira das Notificações
     const trashBtn = document.getElementById('btn-clear-notifications');
     if (currentUser === 'marido') trashBtn.style.display = 'block'; else trashBtn.style.display = 'none';
-    
     document.getElementById('modal-notifications').classList.add('active');
 };
 
@@ -266,23 +235,16 @@ function checkTodayInstallments() {
     dueToday.forEach(e => { sendNotification("💸 Parcela Vencendo Hoje!", `${e.desc} - Valor: R$ ${window.formatCurrency(e.val)}`); });
 }
 
-// --- APROVAÇÃO (DESPESAS E EXCLUSÕES DO PET) ---
+// --- APROVAÇÃO E EXCLUSÕES ---
 function checkForPendingApprovals() {
     if (!currentUser) return;
-    
-    // Aprovação de Exclusões (Regra de 30 minutos)
     const pendingDelete = db.entries.find(e => e.deleteRequest && e.deleteRequest !== currentUser);
     if (pendingDelete && !poppedUpIds.has(pendingDelete.id + "_del")) {
-        poppedUpIds.add(pendingDelete.id + "_del");
-        window.showDeleteApprovalPopup(pendingDelete);
-        return; // Mostra um por vez
+        poppedUpIds.add(pendingDelete.id + "_del"); window.showDeleteApprovalPopup(pendingDelete); return; 
     }
-
-    // Aprovação de Novas Despesas
     const pending = db.entries.find(e => e.type === 'home' && e.status === 'pending' && e.owner !== currentUser);
     if (pending && !poppedUpIds.has(pending.id)) {
-        poppedUpIds.add(pending.id);
-        window.showApprovalPopup(pending);
+        poppedUpIds.add(pending.id); window.showApprovalPopup(pending);
     }
 }
 
@@ -300,7 +262,6 @@ window.showApprovalPopup = function(entry) {
         <strong style="color: var(--primary-gold);">Divisão Solicitada:</strong><br>
         <span style="color: var(--info);">${splitText}</span>
     `;
-    
     document.getElementById('btn-approve-popup').onclick = () => { window.approveEntry(entry.id); window.closeModals(); };
     document.getElementById('btn-reject-popup').onclick = () => { window.rejectEntry(entry.id); window.closeModals(); };
     document.getElementById('modal-approval-popup').classList.add('active');
@@ -313,7 +274,6 @@ window.showDeleteApprovalPopup = function(entry) {
         <span style="opacity: 0.8;">Valor: R$ ${window.formatCurrency(entry.val)}</span><br><br>
         <strong style="color: var(--primary-gold);">O parceiro deseja excluir permanentemente esta despesa. Você autoriza?</strong>
     `;
-    
     document.getElementById('btn-approve-popup').onclick = () => { window.approvePetDelete(entry.id); window.closeModals(); };
     document.getElementById('btn-reject-popup').onclick = () => { window.rejectPetDelete(entry.id); window.closeModals(); };
     document.getElementById('modal-approval-popup').classList.add('active');
@@ -349,46 +309,39 @@ window.openCategoryModal = function() { document.getElementById('new-cat-name').
 window.confirmAddCategory = function() { 
     const newCat = document.getElementById('new-cat-name').value.trim(); 
     if (newCat) { 
-        db.categories.push(newCat); saveDB(); updateCategorySelect(); 
-        setTimeout(() => document.getElementById('exp-cat').value = newCat, 50);
-        showToast("✅ Categoria Adicionada!"); window.closeCategoryModal(); 
+        db.categories.push(newCat); saveDB(); updateCategorySelect(); setTimeout(() => document.getElementById('exp-cat').value = newCat, 50); showToast("✅ Categoria Adicionada!"); window.closeCategoryModal(); 
     } 
 };
 
+// ATUALIZADO: Agora aplica opções de Divisão nos Pets também!
 window.updateSplitOptions = function() {
     const splitSelect = document.getElementById('exp-split');
-    if (!splitSelect) return;
+    const petSplitSelect = document.getElementById('pet-log-split');
+    let optionsHtml = '';
+    
     if (currentUser === 'marido') {
-        splitSelect.innerHTML = `<option value="50">Pagamos juntos (50/50)</option><option value="100">Eu paguei tudo (A Esposa me deve a metade)</option><option value="-100">A Esposa pagou tudo (Eu devo a metade a ela)</option><option value="0">Eu assumi tudo (A Esposa não deve nada)</option>`;
+        optionsHtml = `<option value="50">Pagamos juntos (50/50)</option><option value="100">Eu paguei tudo (A Esposa me deve a metade)</option><option value="-100">A Esposa pagou tudo (Eu devo a metade a ela)</option><option value="0">Eu assumi tudo (A Esposa não deve nada)</option>`;
     } else if (currentUser === 'esposa') {
-        splitSelect.innerHTML = `<option value="50">Pagamos juntos (50/50)</option><option value="100">Eu paguei tudo (O Marido me deve a metade)</option><option value="-100">O Marido pagou tudo (Eu devo a metade a ele)</option><option value="0">Eu assumi tudo (O Marido não deve nada)</option>`;
+        optionsHtml = `<option value="50">Pagamos juntos (50/50)</option><option value="100">Eu paguei tudo (O Marido me deve a metade)</option><option value="-100">O Marido pagou tudo (Eu devo a metade a ele)</option><option value="0">Eu assumi tudo (O Marido não deve nada)</option>`;
     }
+    
+    if (splitSelect) splitSelect.innerHTML = optionsHtml;
+    if (petSplitSelect) petSplitSelect.innerHTML = optionsHtml;
 };
 
 window.openAddModal = function() { 
-    document.getElementById('edit-id').value = ''; 
-    document.getElementById('form-title').innerText = "Nova Despesa"; 
-    document.getElementById('exp-desc').value = ''; 
-    document.getElementById('exp-val').value = ''; 
-    document.getElementById('exp-date').value = getIsoDate(selectedDate);
-    document.getElementById('exp-alarm-date').value = '';
-    document.getElementById('exp-alarm-time').value = '';
-    window.updateSplitOptions();
-    document.getElementById('parcelas-container').style.display = 'block'; 
-    document.getElementById('modal-add').classList.add('active'); 
+    document.getElementById('edit-id').value = ''; document.getElementById('form-title').innerText = "Nova Despesa"; document.getElementById('exp-desc').value = ''; document.getElementById('exp-val').value = ''; document.getElementById('exp-date').value = getIsoDate(selectedDate); document.getElementById('exp-alarm-date').value = ''; document.getElementById('exp-alarm-time').value = ''; window.updateSplitOptions(); document.getElementById('parcelas-container').style.display = 'block'; document.getElementById('modal-add').classList.add('active'); 
 };
 
-// CORREÇÃO: Salvar agora atualiza a tela na mesma hora
 window.handleAddEntry = function() {
     const editId = document.getElementById('edit-id').value; 
     const desc = document.getElementById('exp-desc').value;
-    const valInput = document.getElementById('exp-val').value.replace(',', '.'); // Permite vírgula
+    const valInput = document.getElementById('exp-val').value.replace(',', '.');
     const valTotal = parseFloat(valInput); 
     const cat = document.getElementById('exp-cat').value;
     const date = document.getElementById('exp-date').value; 
     const split = parseInt(document.getElementById('exp-split').value); 
     const parcels = parseInt(document.getElementById('exp-installments').value);
-    
     const alarmDate = document.getElementById('exp-alarm-date').value;
     const alarmTime = document.getElementById('exp-alarm-time').value;
 
@@ -398,16 +351,11 @@ window.handleAddEntry = function() {
         if (editId) {
             const idx = db.entries.findIndex(e => e.id == editId);
             if(idx > -1) { 
-                const splitChanged = db.entries[idx].split !== split;
-                const valChanged = db.entries[idx].val !== valTotal;
-
-                db.entries[idx].desc = desc; db.entries[idx].val = valTotal; 
-                db.entries[idx].category = cat; db.entries[idx].date = date; db.entries[idx].split = split; 
-                
+                const splitChanged = db.entries[idx].split !== split; const valChanged = db.entries[idx].val !== valTotal;
+                db.entries[idx].desc = desc; db.entries[idx].val = valTotal; db.entries[idx].category = cat; db.entries[idx].date = date; db.entries[idx].split = split; 
                 if ((splitChanged || valChanged) && db.entries[idx].type === 'home') {
                     db.entries[idx].status = 'pending'; db.entries[idx].owner = currentUser; db.entries[idx].isEdit = true;
-                    const msg = `🏠 ${currentUser.toUpperCase()} alterou: ${desc} (Aguardando Aprovação)`;
-                    sendNotification("Despesa Pendente", msg); logNotification(msg);
+                    const msg = `🏠 ${currentUser.toUpperCase()} alterou: ${desc} (Aguardando Aprovação)`; sendNotification("Despesa Pendente", msg); logNotification(msg);
                 } else { logNotification(`✏️ ${currentUser.toUpperCase()} atualizou: "${desc}".`); }
             }
         } else {
@@ -415,66 +363,27 @@ window.handleAddEntry = function() {
             for(let i = 0; i < parcels; i++) {
                 let newDate = new Date(y, m - 1 + i, d); let finalDesc = parcels > 1 ? `${desc} (${i+1}/${parcels})` : desc;
                 const baseId = Date.now() + i;
-                db.entries.push({ 
-                    id: baseId, createdAt: Date.now(), desc: finalDesc, val: valParcela, category: cat, 
-                    date: getIsoDate(newDate), split: split, owner: currentUser, type: currentView,
-                    status: currentView === 'home' ? 'pending' : 'approved', isEdit: false
-                });
+                db.entries.push({ id: baseId, createdAt: Date.now(), desc: finalDesc, val: valParcela, category: cat, date: getIsoDate(newDate), split: split, owner: currentUser, type: currentView, status: currentView === 'home' ? 'pending' : 'approved', isEdit: false });
                 if (alarmDate && alarmTime && i === 0) db.entries.push({ id: baseId + 1000, isAlarm: true, desc: "⏰ Pagar: " + finalDesc, date: alarmDate, time: alarmTime, owner: currentUser, type: currentView });
             }
             if (currentView === 'home') { const msg = `🏠 ${currentUser.toUpperCase()} lançou: ${desc}`; logNotification(msg); }
         }
-        saveDB(); showToast("✅ Salvo com sucesso!"); window.closeModals(); 
-        renderAll(); // ATUALIZA A TELA APÓS SALVAR!
+        saveDB(); showToast("✅ Salvo com sucesso!"); window.closeModals(); renderAll(); 
     };
     if (editId) window.showConfirmModal("Confirmar Alteração", "Deseja salvar as mudanças neste registro?", saveAction); else saveAction();
 };
 
-window.approveEntry = function(id) {
-    const idx = db.entries.findIndex(e => e.id === id);
-    if(idx > -1) { db.entries[idx].status = 'approved'; logNotification(`✅ ${currentUser.toUpperCase()} aprovou a despesa "${db.entries[idx].desc}".`); saveDB(); renderAll(); showToast("✅ Despesa aprovada!"); }
-};
-
-window.rejectEntry = function(id) {
-    const idx = db.entries.findIndex(e => e.id === id);
-    if(idx > -1) {
-        if(db.entries[idx].isEdit) { db.entries[idx].status = 'rejected'; showToast("❌ Edição recusada!"); } 
-        else { db.entries[idx].type = 'personal'; db.entries[idx].status = 'approved'; showToast("❌ Despesa enviada para Pessoal!"); }
-        saveDB(); renderAll(); 
-    }
-};
-
-window.editEntry = function(id) { 
-    const e = db.entries.find(x => x.id === id); 
-    document.getElementById('edit-id').value = e.id; 
-    document.getElementById('form-title').innerText = "Editar Registro"; 
-    document.getElementById('exp-desc').value = e.desc; 
-    document.getElementById('exp-val').value = e.val; 
-    document.getElementById('exp-cat').value = e.category; 
-    document.getElementById('exp-date').value = e.date; 
-    window.updateSplitOptions(); document.getElementById('exp-split').value = e.split; 
-    document.getElementById('parcelas-container').style.display = 'none'; 
-    document.getElementById('modal-add').classList.add('active'); 
-};
-
+window.approveEntry = function(id) { const idx = db.entries.findIndex(e => e.id === id); if(idx > -1) { db.entries[idx].status = 'approved'; logNotification(`✅ ${currentUser.toUpperCase()} aprovou a despesa "${db.entries[idx].desc}".`); saveDB(); renderAll(); showToast("✅ Despesa aprovada!"); } };
+window.rejectEntry = function(id) { const idx = db.entries.findIndex(e => e.id === id); if(idx > -1) { if(db.entries[idx].isEdit) { db.entries[idx].status = 'rejected'; showToast("❌ Edição recusada!"); } else { db.entries[idx].type = 'personal'; db.entries[idx].status = 'approved'; showToast("❌ Despesa enviada para Pessoal!"); } saveDB(); renderAll(); } };
+window.editEntry = function(id) { const e = db.entries.find(x => x.id === id); document.getElementById('edit-id').value = e.id; document.getElementById('form-title').innerText = "Editar Registro"; document.getElementById('exp-desc').value = e.desc; document.getElementById('exp-val').value = e.val; document.getElementById('exp-cat').value = e.category; document.getElementById('exp-date').value = e.date; window.updateSplitOptions(); document.getElementById('exp-split').value = e.split; document.getElementById('parcelas-container').style.display = 'none'; document.getElementById('modal-add').classList.add('active'); };
 window.deleteEntry = function(id) { window.showConfirmModal("Excluir", "Deseja apagar este registro permanentemente?", () => { db.entries = db.entries.filter(x => x.id !== id); saveDB(); renderAll(); showToast("🗑 Removido!"); }); };
+
 window.openAlarmModal = function() { document.getElementById('modal-alarm').classList.add('active'); };
 window.handleSaveAlarm = function() { const desc = document.getElementById('alarm-desc').value; const date = document.getElementById('alarm-date').value; const time = document.getElementById('alarm-time').value; if(!desc || !date || !time) return showToast("⚠️ Preencha todos os campos do alarme!", true); db.entries.push({ id: Date.now(), isAlarm: true, desc: "⏰ " + desc, date, time, owner: currentUser, type: currentView }); saveDB(); window.closeModals(); showToast("⏰ Alarme Agendado!"); renderAll(); };
-
 window.showFeiraScreen = function() { window.showScreen('feira-screen'); renderFeira(); }; window.closeFeiraScreen = function() { window.showScreen('main-screen'); };
 window.openFeiraItemModal = function() { document.getElementById('feira-edit-id').value = ''; document.getElementById('feira-item-name').value = ''; document.getElementById('feira-item-val').value = ''; document.getElementById('modal-feira-item').classList.add('active'); };
-window.handleSaveFeiraItem = function() {
-    const id = document.getElementById('feira-edit-id').value; const name = document.getElementById('feira-item-name').value; const val = parseFloat(document.getElementById('feira-item-val').value.replace(',', '.')); const qtd = parseFloat(document.getElementById('feira-item-qtd').value);
-    if(isNaN(val)) return showToast("⚠️ Preencha o valor unitário!", true);
-    const save = () => { if(id) { const idx = db.feiraItems.findIndex(i => i.id == id); db.feiraItems[idx] = { id, name, val, qtd }; } else { db.feiraItems.push({ id: Date.now(), name, val, qtd }); } saveDB(); renderFeira(); window.closeModals(); showToast("✅ Item Salvo!"); };
-    if(id) window.showConfirmModal("Editar Item", "Deseja alterar este item do carrinho?", save); else save();
-};
-function renderFeira() {
-    const list = document.getElementById('feira-list-container'); list.innerHTML = ''; let total = 0;
-    if(db.feiraItems.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5;">O carrinho está vazio.</p>';
-    db.feiraItems.forEach(i => { total += (i.val * i.qtd); list.innerHTML += `<div class="expense-item" style="border-left-color: var(--success);"><div class="expense-info"><strong>${i.name}</strong><small>${i.qtd}x R$ ${window.formatCurrency(i.val)}</small></div><div class="action-btns"><button onclick="deleteFeiraItem(${i.id})" style="color:var(--danger)">🗑</button></div></div>`; });
-    document.getElementById('feira-total-val').innerText = window.formatCurrency(total);
-}
+window.handleSaveFeiraItem = function() { const id = document.getElementById('feira-edit-id').value; const name = document.getElementById('feira-item-name').value; const val = parseFloat(document.getElementById('feira-item-val').value.replace(',', '.')); const qtd = parseFloat(document.getElementById('feira-item-qtd').value); if(isNaN(val)) return showToast("⚠️ Preencha o valor unitário!", true); const save = () => { if(id) { const idx = db.feiraItems.findIndex(i => i.id == id); db.feiraItems[idx] = { id, name, val, qtd }; } else { db.feiraItems.push({ id: Date.now(), name, val, qtd }); } saveDB(); renderFeira(); window.closeModals(); showToast("✅ Item Salvo!"); }; if(id) window.showConfirmModal("Editar Item", "Deseja alterar este item do carrinho?", save); else save(); };
+function renderFeira() { const list = document.getElementById('feira-list-container'); list.innerHTML = ''; let total = 0; if(db.feiraItems.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5;">O carrinho está vazio.</p>'; db.feiraItems.forEach(i => { total += (i.val * i.qtd); list.innerHTML += `<div class="expense-item" style="border-left-color: var(--success);"><div class="expense-info"><strong>${i.name}</strong><small>${i.qtd}x R$ ${window.formatCurrency(i.val)}</small></div><div class="action-btns"><button onclick="deleteFeiraItem(${i.id})" style="color:var(--danger)">🗑</button></div></div>`; }); document.getElementById('feira-total-val').innerText = window.formatCurrency(total); }
 window.deleteFeiraItem = function(id) { window.showConfirmModal("Remover", "Tirar item do carrinho?", () => { db.feiraItems = db.feiraItems.filter(i => i.id !== id); saveDB(); renderFeira(); }); }; window.clearFeira = function() { window.showConfirmModal("Limpar Tudo", "Deseja esvaziar o carrinho?", () => { db.feiraItems = []; saveDB(); renderFeira(); }); };
 
 function renderAll() {
@@ -502,20 +411,17 @@ function renderAll() {
     } else {
         viewMonthEntries = baseMonthEntries.filter(e => (e.type === 'home' && e.status === 'approved') || (e.type === 'personal' && e.owner === currentUser));
         viewMonthEntries.filter(e => e.type === 'personal' && e.owner === currentUser).forEach(e => personalTotal += e.val);
-        document.getElementById('stat-m').innerText = `R$ ${window.formatCurrency(personalTotal)}`; document.getElementById('card-esposa').style.display = 'none';
-        document.getElementById('card-balance').style.display = 'none'; document.getElementById('label-marido').innerText = 'Meu Total Pessoal';
+        document.getElementById('stat-m').innerText = `R$ ${window.formatCurrency(personalTotal)}`; document.getElementById('card-esposa').style.display = 'none'; document.getElementById('card-balance').style.display = 'none'; document.getElementById('label-marido').innerText = 'Meu Total Pessoal';
     }
 
     drawChart(viewMonthEntries);
-
     const dayStr = getIsoDate(selectedDate); const container = document.getElementById('list-container'); container.innerHTML = '<h4>Lançamentos do dia</h4>';
     const viewDayEntries = db.entries.filter(e => { if(e.date !== dayStr) return false; if(currentView === 'home') return e.type === 'home' || e.isAlarm; return e.type === 'home' || (e.type === 'personal' && e.owner === currentUser) || (e.isAlarm && e.owner === currentUser); });
 
     if(viewDayEntries.length === 0) container.innerHTML += '<p style="text-align:center; opacity:0.5;">Nenhum registro no dia.</p>';
     viewDayEntries.forEach(e => {
-        if(e.isAlarm) { 
-            container.innerHTML += `<div class="expense-item" style="border-color: var(--info);"><div class="expense-info"><strong>${e.desc}</strong><small>${e.time} • Por: ${e.owner}</small></div><div class="action-btns"><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button></div></div>`; 
-        } else { 
+        if(e.isAlarm) { container.innerHTML += `<div class="expense-item" style="border-color: var(--info);"><div class="expense-info"><strong>${e.desc}</strong><small>${e.time} • Por: ${e.owner}</small></div><div class="action-btns"><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button></div></div>`; } 
+        else { 
             const icon = e.category === 'Pet' ? '🐾' : (e.type === 'home' ? '🏠' : '👤'); 
             let statusTag = ''; let actionHtml = '';
             let splitTextList = "";
@@ -524,48 +430,24 @@ function renderAll() {
             else if (e.split === -100) splitTextList = `O outro pagou tudo`;
             else if (e.split === 0) splitTextList = `${e.owner.toUpperCase()} assumiu`;
 
-            if (e.type === 'home' && e.status === 'pending') {
-                statusTag = `<br><span style="font-size: 0.7rem; background: var(--danger); padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">⏳ Pendente (${splitTextList})</span>`;
-                if (e.owner !== currentUser) { actionHtml = `<button onclick="approveEntry(${e.id})" style="color:var(--success)">✅</button><button onclick="rejectEntry(${e.id})" style="color:var(--danger)">❌</button>`; } 
-                else { actionHtml = `<button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; }
-            } else if (e.type === 'home' && e.status === 'rejected') {
-                statusTag = `<br><span style="font-size: 0.7rem; background: #555; padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">❌ Recusado (${splitTextList})</span>`;
-                actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
-            } else {
-                if(e.type === 'home') statusTag = `<br><span style="font-size: 0.7rem; color: var(--success); display: inline-block; margin-top: 4px;">✅ Aprovado (${splitTextList})</span>`;
-                actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
-            }
+            if (e.type === 'home' && e.status === 'pending') { statusTag = `<br><span style="font-size: 0.7rem; background: var(--danger); padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">⏳ Pendente (${splitTextList})</span>`; if (e.owner !== currentUser) { actionHtml = `<button onclick="approveEntry(${e.id})" style="color:var(--success)">✅</button><button onclick="rejectEntry(${e.id})" style="color:var(--danger)">❌</button>`; } else { actionHtml = `<button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; } } 
+            else if (e.type === 'home' && e.status === 'rejected') { statusTag = `<br><span style="font-size: 0.7rem; background: #555; padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">❌ Recusado (${splitTextList})</span>`; actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; } 
+            else { if(e.type === 'home') statusTag = `<br><span style="font-size: 0.7rem; color: var(--success); display: inline-block; margin-top: 4px;">✅ Aprovado (${splitTextList})</span>`; actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; }
             container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${window.formatCurrency(e.val)} - ${e.category} ${statusTag}</small></div><div class="action-btns">${actionHtml}</div></div>`; 
         }
     });
 }
 
-function drawChart(data) {
-    const canvas = document.getElementById('expense-chart'); const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,160,160); const legend = document.getElementById('chart-legend'); legend.innerHTML = '';
-    let cats = {}; let total = 0; data.forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.val; total += e.val; });
-    if(total === 0) { ctx.beginPath(); ctx.arc(80, 80, 75, 0, 2 * Math.PI); ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill(); return; }
-    let start = 0; let i = 0;
-    for(let c in cats) { let slice = (cats[c]/total) * 2 * Math.PI; ctx.beginPath(); ctx.moveTo(80,80); ctx.arc(80,80,75,start,start+slice); let color = chartColors[i % chartColors.length]; ctx.fillStyle = color; ctx.fill(); let percent = ((cats[c]/total)*100).toFixed(1); legend.innerHTML += `<div style="font-size:0.75rem; background:rgba(0,0,0,0.2); padding:2px 8px; border-radius:10px; display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; background:${color}; border-radius:50%; display:inline-block;"></span>${c}: ${percent}%</div>`; start += slice; i++; }
-}
+function drawChart(data) { const canvas = document.getElementById('expense-chart'); const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,160,160); const legend = document.getElementById('chart-legend'); legend.innerHTML = ''; let cats = {}; let total = 0; data.forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.val; total += e.val; }); if(total === 0) { ctx.beginPath(); ctx.arc(80, 80, 75, 0, 2 * Math.PI); ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill(); return; } let start = 0; let i = 0; for(let c in cats) { let slice = (cats[c]/total) * 2 * Math.PI; ctx.beginPath(); ctx.moveTo(80,80); ctx.arc(80,80,75,start,start+slice); let color = chartColors[i % chartColors.length]; ctx.fillStyle = color; ctx.fill(); let percent = ((cats[c]/total)*100).toFixed(1); legend.innerHTML += `<div style="font-size:0.75rem; background:rgba(0,0,0,0.2); padding:2px 8px; border-radius:10px; display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; background:${color}; border-radius:50%; display:inline-block;"></span>${c}: ${percent}%</div>`; start += slice; i++; } }
 
 setInterval(() => { const now = new Date(); const d = getIsoDate(now); const t = String(now.getHours()).padStart(2,'0') + ":" + String(now.getMinutes()).padStart(2,'0'); db.entries.forEach(e => { if(e.isAlarm && e.date === d && e.time === t && !e.triggered) { sendNotification("⏰ Lembrete!", e.desc); e.triggered = true; saveDB(); } }); }, 60000);
 
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        currentFamilyId = user.uid;
-        const savedProfile = localStorage.getItem('activeProfile');
-        if (savedProfile) {
-            currentUser = savedProfile; document.getElementById('display-user').innerText = savedProfile; window.showScreen('main-screen'); listenToCoupleData();
-            if ("Notification" in window) Notification.requestPermission().then(p => { if (p === "granted") checkTodayInstallments(); });
-        } else { window.showScreen('profile-screen'); }
-    } else {
-        currentFamilyId = null; currentUser = null; localStorage.removeItem('activeProfile'); window.showScreen('login-screen');
-    }
-});
+onAuthStateChanged(auth, (user) => { if (user) { currentFamilyId = user.uid; const savedProfile = localStorage.getItem('activeProfile'); if (savedProfile) { currentUser = savedProfile; document.getElementById('display-user').innerText = savedProfile; window.showScreen('main-screen'); listenToCoupleData(); if ("Notification" in window) Notification.requestPermission().then(p => { if (p === "granted") checkTodayInstallments(); }); } else { window.showScreen('profile-screen'); } } else { currentFamilyId = null; currentUser = null; localStorage.removeItem('activeProfile'); window.showScreen('login-screen'); } });
 
-// --- NOVO SISTEMA DOS PETS (Agora lança como Despesa da Casa) ---
+// --- SISTEMA DOS PETS ---
 window.openPetLog = function() {
-    document.getElementById('pet-search').value = ''; // Limpa a busca ao abrir
+    document.getElementById('pet-search').value = ''; 
+    window.updateSplitOptions(); // Carrega as opções de divisão!
     renderPetLog();
     document.getElementById('modal-pet-log').classList.add('active');
 };
@@ -574,53 +456,32 @@ window.addPetLog = function() {
     const desc = document.getElementById('pet-log-desc').value.trim();
     const valInput = document.getElementById('pet-log-val').value.replace(',', '.');
     const val = parseFloat(valInput);
+    const split = parseInt(document.getElementById('pet-log-split').value) || 50; // Pega a divisão escolhida!
     
     if (!desc || isNaN(val)) return showToast("⚠️ Digite a descrição e o valor!", true);
     
-    // Adiciona direto nas Despesas da Casa!
     db.entries.push({
-        id: Date.now(),
-        createdAt: Date.now(),
-        desc: "🐾 " + desc,
-        val: val,
-        category: 'Pet',
-        date: getIsoDate(new Date()), // Lança no dia de hoje
-        split: 50, // Padrão dividido por igual
-        owner: currentUser,
-        type: 'home',
-        status: 'pending', // Fica pendente de aprovação normal
-        isEdit: false
+        id: Date.now(), createdAt: Date.now(), desc: "🐾 " + desc, val: val, category: 'Pet',
+        date: getIsoDate(new Date()), split: split, owner: currentUser, type: 'home', status: 'pending', isEdit: false
     });
     
     saveDB();
-    document.getElementById('pet-log-desc').value = '';
-    document.getElementById('pet-log-val').value = '';
-    renderPetLog();
-    renderAll();
+    document.getElementById('pet-log-desc').value = ''; document.getElementById('pet-log-val').value = '';
+    renderPetLog(); renderAll();
     showToast("🐾 Despesa Pet lançada com sucesso!");
     logNotification(`🐾 ${currentUser.toUpperCase()} lançou: ${desc} (Aguardando Aprovação)`);
 };
 
 window.renderPetLog = function() {
-    const list = document.getElementById('pet-log-list');
-    const searchTerm = document.getElementById('pet-search').value.toLowerCase();
-    list.innerHTML = '';
-    
-    // Filtra apenas despesas com a categoria Pet
-    let pets = db.entries.filter(e => e.category === 'Pet');
-    if (searchTerm) pets = pets.filter(e => e.desc.toLowerCase().includes(searchTerm)); // Busca
-    pets.sort((a, b) => b.id - a.id); // Mais novos primeiro
+    const list = document.getElementById('pet-log-list'); const searchTerm = document.getElementById('pet-search').value.toLowerCase(); list.innerHTML = '';
+    let pets = db.entries.filter(e => e.category === 'Pet'); if (searchTerm) pets = pets.filter(e => e.desc.toLowerCase().includes(searchTerm)); pets.sort((a, b) => b.id - a.id); 
     
     if (pets.length === 0) { list.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:10px;">Nenhum registro encontrado.</p>'; return; }
     
     pets.forEach(e => {
         let actionBtn = '';
-        if (e.deleteRequest) { // Se pediu pra apagar
-            if (e.deleteRequest === currentUser) actionBtn = `<span style="font-size:0.7rem; color: var(--danger);">Aguardando parceiro...</span>`;
-            else actionBtn = `<button onclick="approvePetDelete(${e.id})" style="color:var(--success); border:none; background:none;">✅</button><button onclick="rejectPetDelete(${e.id})" style="color:var(--danger); border:none; background:none;">❌</button>`;
-        } else {
-            actionBtn = `<button onclick="deletePetEntry(${e.id})" style="color:var(--danger); font-size: 1.2rem; border:none; background:none;">🗑️</button>`;
-        }
+        if (e.deleteRequest) { if (e.deleteRequest === currentUser) actionBtn = `<span style="font-size:0.7rem; color: var(--danger);">Aguardando parceiro...</span>`; else actionBtn = `<button onclick="approvePetDelete(${e.id})" style="color:var(--success); border:none; background:none;">✅</button><button onclick="rejectPetDelete(${e.id})" style="color:var(--danger); border:none; background:none;">❌</button>`; } 
+        else { actionBtn = `<button onclick="deletePetEntry(${e.id})" style="color:var(--danger); font-size: 1.2rem; border:none; background:none;">🗑️</button>`; }
         
         list.innerHTML += `
             <div class="log-item" style="border-left: 3px solid var(--primary-gold); margin-bottom: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; display:flex; justify-content: space-between; align-items: center;">
@@ -634,33 +495,15 @@ window.renderPetLog = function() {
     });
 };
 
-// REGRA DE EXCLUSÃO DOS PETS (30 Minutos)
 window.deletePetEntry = function(id) {
-    const e = db.entries.find(x => x.id === id);
-    if (!e) return;
-    
+    const e = db.entries.find(x => x.id === id); if (!e) return;
     const elapsedMinutes = (Date.now() - (e.createdAt || e.id)) / (1000 * 60);
-    
-    if (elapsedMinutes <= 30) {
-        window.showConfirmModal("Apagar Registro", "Deseja apagar este registro?", () => {
-            db.entries = db.entries.filter(x => x.id !== id);
-            saveDB(); renderPetLog(); renderAll(); showToast("🗑️ Registro apagado!");
-        });
-    } else {
-        window.showConfirmModal("Solicitar Exclusão", "Já se passaram 30 minutos. Para apagar, o parceiro precisa aprovar. Solicitar?", () => {
-            e.deleteRequest = currentUser;
-            saveDB(); renderPetLog(); renderAll(); showToast("⏳ Solicitação enviada!");
-        });
-    }
+    if (elapsedMinutes <= 30) { window.showConfirmModal("Apagar Registro", "Deseja apagar este registro?", () => { db.entries = db.entries.filter(x => x.id !== id); saveDB(); renderPetLog(); renderAll(); showToast("🗑️ Registro apagado!"); }); } 
+    else { window.showConfirmModal("Solicitar Exclusão", "Já se passaram 30 minutos. Para apagar, o parceiro precisa aprovar. Solicitar?", () => { e.deleteRequest = currentUser; saveDB(); renderPetLog(); renderAll(); showToast("⏳ Solicitação enviada!"); }); }
 };
 
-window.approvePetDelete = function(id) {
-    db.entries = db.entries.filter(x => x.id !== id); saveDB(); renderPetLog(); renderAll(); showToast("✅ Exclusão aprovada!");
-};
-
-window.rejectPetDelete = function(id) {
-    const e = db.entries.find(x => x.id === id); if(e) { delete e.deleteRequest; saveDB(); renderPetLog(); showToast("❌ Exclusão recusada!"); }
-};
+window.approvePetDelete = function(id) { db.entries = db.entries.filter(x => x.id !== id); saveDB(); renderPetLog(); renderAll(); showToast("✅ Exclusão aprovada!"); };
+window.rejectPetDelete = function(id) { const e = db.entries.find(x => x.id === id); if(e) { delete e.deleteRequest; saveDB(); renderPetLog(); showToast("❌ Exclusão recusada!"); } };
 
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
 let deferredPrompt; window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; const btn = document.getElementById('btn-install'); if(btn) btn.style.display = 'inline-block'; });
