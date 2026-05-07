@@ -51,6 +51,11 @@ function showToast(msg, isError = false) {
     setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
 }
 
+// CORREÇÃO: Função que formata o dinheiro com ponto e vírgula (Padrão BR)
+window.formatCurrency = function(value) {
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 let pendingConfirmAction = null;
 window.showConfirmModal = function(title, msg, onConfirm) {
     document.getElementById('confirm-title').innerText = title;
@@ -82,7 +87,7 @@ function listenToCoupleData() {
             if (!db.feiraItems) db.feiraItems = [];
             if (!db.notificationsLog) db.notificationsLog = [];
             if (!db.profiles) db.profiles = {};
-            if (!db.petLog) db.petLog = []; // <-- Inicia a lista de Pets se ela não existir
+            if (!db.petLog) db.petLog = []; 
         } else {
             db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], petLog: [], cpfs: {}, profiles: {} };
             saveDB();
@@ -107,7 +112,6 @@ window.handleRegister = async function() {
         showToast("⏳ Criando conta...");
         const userCred = await createUserWithEmailAndPassword(auth, email, pass);
         currentFamilyId = userCred.user.uid;
-        // Inicia banco zerado com Pets
         db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], petLog: [], cpfs: { titular: cpf1, conjuge: cpf2 }, profiles: {} };
         saveDB();
         showToast("✅ Família cadastrada com sucesso!");
@@ -243,7 +247,7 @@ window.recoverProfileWithFamilyPass = async function() {
 
 function enterProfile(role) {
     currentUser = role;
-    localStorage.setItem('activeProfile', role);
+    localStorage.setItem('activeProfile', role); // Salva o perfil
     document.getElementById('display-user').innerText = role;
     window.showScreen('main-screen');
     listenToCoupleData();
@@ -268,14 +272,37 @@ function logNotification(text) {
 
 window.openNotifications = function() {
     const list = document.getElementById('notifications-list'); list.innerHTML = '';
-    if (!db.notificationsLog || db.notificationsLog.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5;">Nenhuma atividade recente.</p>';
-    else db.notificationsLog.forEach(log => { list.innerHTML += `<div class="log-item"><span class="log-time">${log.time}</span>${log.text}</div>`; });
+    if (!db.notificationsLog || db.notificationsLog.length === 0) {
+        list.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:10px;">Nenhuma atividade recente.</p>';
+    } else {
+        db.notificationsLog.forEach(log => { list.innerHTML += `<div class="log-item"><span class="log-time">${log.time}</span>${log.text}</div>`; });
+    }
+    
+    // Regra da Lixeira das Notificações: Só o marido limpa
+    const trashBtn = document.getElementById('btn-clear-notifications');
+    if (currentUser === 'marido') {
+        trashBtn.style.display = 'block';
+    } else {
+        trashBtn.style.display = 'none';
+    }
+    
     document.getElementById('modal-notifications').classList.add('active');
+};
+
+window.clearNotifications = function() {
+    if(currentUser !== 'marido') return showToast("❌ Apenas o Marido tem permissão para limpar o log.", true);
+    
+    window.showConfirmModal("Apagar Atividades", "Deseja apagar todo o registro de atividades?", () => {
+        db.notificationsLog = [];
+        saveDB();
+        openNotifications(); // Atualiza a tela depois de limpar
+        showToast("🗑️ Atividades apagadas!");
+    });
 };
 
 function checkTodayInstallments() {
     const todayStr = getIsoDate(new Date()); const dueToday = db.entries.filter(e => e.date === todayStr && e.desc.includes('/') && e.type === 'home');
-    dueToday.forEach(e => { sendNotification("💸 Parcela Vencendo Hoje!", `${e.desc} - Valor: R$ ${e.val.toFixed(2)}`); });
+    dueToday.forEach(e => { sendNotification("💸 Parcela Vencendo Hoje!", `${e.desc} - Valor: R$ ${formatCurrency(e.val)}`); });
 }
 
 // Verifica e exibe o Popup de Aprovação
@@ -297,7 +324,7 @@ window.showApprovalPopup = function(entry) {
 
     document.getElementById('approval-popup-content').innerHTML = `
         <strong style="font-size:1.1rem; color:var(--text-light);">${entry.desc}</strong><br>
-        <span style="opacity: 0.8;">Valor: R$ ${entry.val.toFixed(2)} | Data: ${entry.date.split('-').reverse().join('/')}</span><br><br>
+        <span style="opacity: 0.8;">Valor: R$ ${formatCurrency(entry.val)} | Data: ${entry.date.split('-').reverse().join('/')}</span><br><br>
         <strong style="color: var(--primary-gold);">Divisão Solicitada:</strong><br>
         <span style="color: var(--info);">${splitText}</span>
     `;
@@ -506,8 +533,8 @@ window.handleSaveFeiraItem = function() {
 function renderFeira() {
     const list = document.getElementById('feira-list-container'); list.innerHTML = ''; let total = 0;
     if(db.feiraItems.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5;">O carrinho está vazio.</p>';
-    db.feiraItems.forEach(i => { total += (i.val * i.qtd); list.innerHTML += `<div class="expense-item" style="border-left-color: var(--success);"><div class="expense-info"><strong>${i.name}</strong><small>${i.qtd}x R$ ${i.val.toFixed(2)}</small></div><div class="action-btns"><button onclick="deleteFeiraItem(${i.id})" style="color:var(--danger)">🗑</button></div></div>`; });
-    document.getElementById('feira-total-val').innerText = total.toFixed(2);
+    db.feiraItems.forEach(i => { total += (i.val * i.qtd); list.innerHTML += `<div class="expense-item" style="border-left-color: var(--success);"><div class="expense-info"><strong>${i.name}</strong><small>${i.qtd}x R$ ${formatCurrency(i.val)}</small></div><div class="action-btns"><button onclick="deleteFeiraItem(${i.id})" style="color:var(--danger)">🗑</button></div></div>`; });
+    document.getElementById('feira-total-val').innerText = formatCurrency(total);
 }
 window.deleteFeiraItem = function(id) { window.showConfirmModal("Remover", "Tirar item do carrinho?", () => { db.feiraItems = db.feiraItems.filter(i => i.id !== id); saveDB(); renderFeira(); }); }; window.clearFeira = function() { window.showConfirmModal("Limpar Tudo", "Deseja esvaziar o carrinho?", () => { db.feiraItems = []; saveDB(); renderFeira(); }); };
 
@@ -527,24 +554,24 @@ function renderAll() {
 
     if (currentView === 'home') {
         viewMonthEntries = homeMonthEntries; 
-        document.getElementById('stat-m').innerText = `R$ ${totalM.toFixed(2)}`; document.getElementById('stat-e').innerText = `R$ ${totalE.toFixed(2)}`;
+        document.getElementById('stat-m').innerText = `R$ ${formatCurrency(totalM)}`; document.getElementById('stat-e').innerText = `R$ ${formatCurrency(totalE)}`;
         document.getElementById('card-esposa').style.display = 'block'; document.getElementById('card-balance').style.display = 'block'; document.getElementById('label-marido').innerText = 'Total Marido';
         
         const bal = debtE - debtM; 
         const balEl = document.getElementById('stat-balance');
         
         if (bal > 0) { 
-            if (currentUser === 'esposa') { balEl.innerText = `Você deve R$ ${bal.toFixed(2)} ao Marido`; balEl.style.color = "var(--danger)"; } 
-            else { balEl.innerText = `A Esposa lhe deve R$ ${bal.toFixed(2)}`; balEl.style.color = "var(--success)"; }
+            if (currentUser === 'esposa') { balEl.innerText = `Você deve R$ ${formatCurrency(bal)} ao Marido`; balEl.style.color = "var(--danger)"; } 
+            else { balEl.innerText = `A Esposa lhe deve R$ ${formatCurrency(bal)}`; balEl.style.color = "var(--success)"; }
         } else if (bal < 0) { 
-            if (currentUser === 'marido') { balEl.innerText = `Você deve R$ ${Math.abs(bal).toFixed(2)} à Esposa`; balEl.style.color = "var(--danger)"; } 
-            else { balEl.innerText = `O Marido lhe deve R$ ${Math.abs(bal).toFixed(2)}`; balEl.style.color = "var(--success)"; }
+            if (currentUser === 'marido') { balEl.innerText = `Você deve R$ ${formatCurrency(Math.abs(bal))} à Esposa`; balEl.style.color = "var(--danger)"; } 
+            else { balEl.innerText = `O Marido lhe deve R$ ${formatCurrency(Math.abs(bal))}`; balEl.style.color = "var(--success)"; }
         } else { balEl.innerText = "Tudo quitado!"; balEl.style.color = "var(--success)"; }
 
     } else {
         viewMonthEntries = baseMonthEntries.filter(e => (e.type === 'home' && e.status === 'approved') || (e.type === 'personal' && e.owner === currentUser));
         viewMonthEntries.filter(e => e.type === 'personal' && e.owner === currentUser).forEach(e => personalTotal += e.val);
-        document.getElementById('stat-m').innerText = `R$ ${(personalTotal).toFixed(2)}`; document.getElementById('card-esposa').style.display = 'none';
+        document.getElementById('stat-m').innerText = `R$ ${formatCurrency(personalTotal)}`; document.getElementById('card-esposa').style.display = 'none';
         document.getElementById('card-balance').style.display = 'none'; document.getElementById('label-marido').innerText = 'Meu Total Pessoal';
     }
 
@@ -579,7 +606,7 @@ function renderAll() {
                 if(e.type === 'home') statusTag = `<br><span style="font-size: 0.7rem; color: var(--success); display: inline-block; margin-top: 4px;">✅ Aprovado (${splitTextList})</span>`;
                 actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
             }
-            container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${e.val.toFixed(2)} - ${e.category} ${statusTag}</small></div><div class="action-btns">${actionHtml}</div></div>`; 
+            container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${formatCurrency(e.val)} - ${e.category} ${statusTag}</small></div><div class="action-btns">${actionHtml}</div></div>`; 
         }
     });
 }
@@ -595,12 +622,18 @@ function drawChart(data) {
 setInterval(() => { const now = new Date(); const d = getIsoDate(now); const t = String(now.getHours()).padStart(2,'0') + ":" + String(now.getMinutes()).padStart(2,'0'); db.entries.forEach(e => { if(e.isAlarm && e.date === d && e.time === t && !e.triggered) { sendNotification("⏰ Lembrete!", e.desc); e.triggered = true; saveDB(); } }); }, 60000);
 
 // --- 7. OBSERVADOR DE AUTENTICAÇÃO ---
+// CORREÇÃO: Mantém o usuário logado mesmo quando recarrega a página
 onAuthStateChanged(auth, (user) => {
     if (user) {
         currentFamilyId = user.uid;
         const savedProfile = localStorage.getItem('activeProfile');
         if (savedProfile) {
-            window.selectProfile(savedProfile);
+            // Se ele já estava logado num perfil, pula a tela de senha e vai direto pro app
+            currentUser = savedProfile;
+            document.getElementById('display-user').innerText = savedProfile;
+            window.showScreen('main-screen');
+            listenToCoupleData();
+            if ("Notification" in window) Notification.requestPermission().then(p => { if (p === "granted") checkTodayInstallments(); });
         } else {
             window.showScreen('profile-screen');
         }
@@ -634,7 +667,6 @@ window.addPetLog = function() {
     
     if(!db.petLog) db.petLog = [];
     
-    // Insere no topo da lista
     db.petLog.unshift({ id: Date.now(), text: desc, time: dateStr, author: currentUser });
     saveDB();
     
@@ -663,7 +695,6 @@ function renderPetLog() {
 }
 
 window.clearPetLog = function() {
-    // Bloqueio de segurança extra
     if(currentUser !== 'marido') {
         return showToast("❌ Apenas o Marido tem permissão para apagar o histórico.", true);
     }
