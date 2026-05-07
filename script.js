@@ -1,338 +1,614 @@
-import os
+// --- IMPORTAÇÃO DOS MÓDULOS DO FIREBASE AUTH E DATABASE V10 ---
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
 
-html_content = """<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanças Família Bem - Premium</title>
-    <link rel="manifest" href="manifest.json">
-    <style>
-        :root {
-            --bg-gradient: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-            --glass-bg: rgba(255, 255, 255, 0.05);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --primary-gold: #d4af37;
-            --text-light: #f5f5f5;
-            --danger: #ff4757;
-            --success: #2ed573;
-            --info: #3498db;
+const firebaseConfig = {
+    apiKey: "AIzaSyDlb1GCYz9ztCSPnKxit7Puzk2SYrHjFOY",
+    authDomain: "familia-bem.firebaseapp.com",
+    databaseURL: "https://familia-bem-default-rtdb.firebaseio.com",
+    projectId: "familia-bem",
+    storageBucket: "familia-bem.firebasestorage.app",
+    messagingSenderId: "34742540151",
+    appId: "1:34742540151:web:19d0343af0ec4393437372"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const dbFirebase = getDatabase(app);
+
+// --- ESTADOS DO APLICATIVO ---
+let currentFamilyId = null; 
+let currentUser = null; 
+let selectedRoleToLogin = null; 
+let currentView = 'home';
+let currentDate = new Date(); 
+let selectedDate = new Date(); 
+const chartColors = ['#d4af37', '#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1c40f', '#1abc9c'];
+
+let db = { categories: [], entries: [], feiraItems: [], notificationsLog: [], cpfs: {}, profiles: {} };
+let poppedUpIds = new Set(); // Controle para não repetir o popup da mesma despesa
+
+// --- 1. FUNÇÕES GERAIS E UI ---
+window.showScreen = function(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+};
+
+window.closeModals = function() {
+    document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+};
+
+window.closeCategoryModal = function() {
+    document.getElementById('modal-category').classList.remove('active');
+};
+
+function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.innerText = msg;
+    t.style.backgroundColor = isError ? 'var(--danger)' : 'var(--success)';
+    t.className = "show";
+    setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
+}
+
+let pendingConfirmAction = null;
+window.showConfirmModal = function(title, msg, onConfirm) {
+    document.getElementById('confirm-title').innerText = title;
+    document.getElementById('confirm-msg').innerText = msg;
+    pendingConfirmAction = onConfirm;
+    document.getElementById('btn-confirm-action').onclick = () => {
+        if(pendingConfirmAction) pendingConfirmAction();
+        window.closeModals();
+    };
+    document.getElementById('modal-confirm').classList.add('active');
+};
+
+function getIsoDate(dateObj) { 
+    return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`; 
+}
+
+// --- 2. BANCO DE DADOS ---
+function saveDB() {
+    if (currentFamilyId) set(ref(dbFirebase, 'couples/' + currentFamilyId), db);
+}
+
+function listenToCoupleData() {
+    onValue(ref(dbFirebase, 'couples/' + currentFamilyId), (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            db = data;
+            if (!db.categories) db.categories = ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'];
+            if (!db.entries) db.entries = [];
+            if (!db.feiraItems) db.feiraItems = [];
+            if (!db.notificationsLog) db.notificationsLog = [];
+            if (!db.profiles) db.profiles = {};
+        } else {
+            db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: {}, profiles: {} };
+            saveDB();
         }
+        updateCategorySelect(); 
+        renderAll();
+        checkForPendingApprovals(); // Verifica se precisa abrir o popup na tela
+    });
+}
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: var(--bg-gradient); color: var(--text-light); min-height: 100vh; padding: 15px; padding-bottom: 80px; }
+// --- 3. LOGIN GERAL DA FAMÍLIA E PERFIS ---
+window.handleRegister = async function() {
+    const email = document.getElementById('reg-email').value.trim();
+    const pass = document.getElementById('reg-pass').value;
+    const cpf1 = document.getElementById('reg-cpf-1').value.replace(/\D/g, '');
+    const cpf2 = document.getElementById('reg-cpf-2').value.replace(/\D/g, '');
 
-        .glass {
-            background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            border: 1px solid var(--glass-border); border-radius: 20px; padding: 20px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    if(!email || !pass || !cpf1 || !cpf2) return showToast("⚠️ Preencha todos os campos!", true);
+    if(pass.length < 6) return showToast("⚠️ A senha precisa ter no mínimo 6 caracteres.", true);
+
+    try {
+        showToast("⏳ Criando conta...");
+        const userCred = await createUserWithEmailAndPassword(auth, email, pass);
+        currentFamilyId = userCred.user.uid;
+        db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: { titular: cpf1, conjuge: cpf2 }, profiles: {} };
+        saveDB();
+        showToast("✅ Família cadastrada com sucesso!");
+    } catch(error) {
+        if(error.code === 'auth/email-already-in-use') showToast("❌ Este e-mail já está em uso!", true);
+        else if(error.code === 'auth/invalid-email') showToast("❌ E-mail inválido!", true);
+        else showToast("❌ Erro ao registrar.", true);
+    }
+};
+
+window.attemptLogin = async function() {
+    const email = document.getElementById('login-email').value.trim();
+    const pass = document.getElementById('login-pass').value;
+    
+    if(!email || !pass) return showToast("⚠️ Preencha E-mail e Senha!", true);
+    
+    try { 
+        showToast("⏳ Conectando...");
+        await signInWithEmailAndPassword(auth, email, pass); 
+    } catch(error) { 
+        if(error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+            showToast("❌ Senha incorreta!", true);
+        } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
+            showToast("❌ E-mail não cadastrado ou inválido!", true);
+        } else if (error.code === 'auth/too-many-requests') {
+            showToast("❌ Muitas tentativas. Aguarde um momento.", true);
+        } else {
+            showToast("❌ Erro ao entrar. Verifique os dados.", true);
         }
+    }
+};
 
-        .screen { display: none; max-width: 500px; margin: auto; animation: fadeIn 0.4s ease; }
-        .screen.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+window.handleForgotPassword = async function() {
+    const email = document.getElementById('forgot-email').value.trim();
+    if(!email) return showToast("⚠️ Digite o e-mail da conta!", true);
+    try {
+        await sendPasswordResetEmail(auth, email);
+        showToast("📧 Link enviado para o e-mail da Família!");
+        window.showScreen('login-screen');
+    } catch(error) {
+        showToast("❌ Erro ao enviar. Verifique o E-mail.", true);
+    }
+};
 
-        h1, h2, h3, h4 { color: var(--primary-gold); text-align: center; margin-bottom: 15px; }
-        
-        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: none; outline: none; font-size: 1rem; }
-        input, select { background: rgba(255,255,255,0.08); color: white; border: 1px solid var(--glass-border); color-scheme: dark; }
-        select option { color: #111; background: #fff; }
-        
-        button { background: var(--primary-gold); color: #111; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .btn-outline { background: transparent; border: 1px solid var(--primary-gold); color: var(--primary-gold); }
-        .link-text { color: var(--primary-gold); font-size: 0.85rem; cursor: pointer; display: block; margin-top: 15px; text-align: center; text-decoration: underline; }
+window.logoutFamily = function() {
+    window.showConfirmModal("Sair da Família", "Deseja deslogar totalmente a família do aplicativo?", async () => {
+        await signOut(auth);
+    });
+};
 
-        /* Navigation & Tabs */
-        .tabs { display: flex; gap: 10px; margin-bottom: 10px; }
-        .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; border-bottom: 2px solid transparent; opacity: 0.5; }
-        .tab.active { border-color: var(--primary-gold); opacity: 1; color: var(--primary-gold); font-weight: bold; }
-        
-        .tools-row { display: flex; gap: 10px; margin-bottom: 15px; }
-        .tool-btn { flex: 1; background: rgba(255,255,255,0.1); color: var(--text-light); font-size: 0.85rem; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; border-radius: 12px; border: 1px solid var(--glass-border); cursor: pointer;}
-
-        /* Cards & Summary */
-        .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-        .card { padding: 10px; text-align: center; font-size: 0.85rem; border-radius: 15px;}
-        .card strong { display: block; font-size: 1.1rem; color: var(--primary-gold); }
-        
-        .expense-item { 
-            background: rgba(0,0,0,0.3); padding: 12px; border-radius: 12px; margin-bottom: 10px;
-            display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary-gold);
+window.selectProfile = async function(role) {
+    selectedRoleToLogin = role;
+    if(document.getElementById('profile-pass')) document.getElementById('profile-pass').value = '';
+    
+    try {
+        const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}`));
+        if (snap.exists() && snap.val().password) {
+            document.getElementById('profile-login-title').innerText = `Área Privada - ${role.charAt(0).toUpperCase() + role.slice(1)}`;
+            window.showScreen('profile-login-screen');
+        } else {
+            document.getElementById('profile-setup-title').innerText = `Criar Senha - ${role.charAt(0).toUpperCase() + role.slice(1)}`;
+            window.showScreen('profile-setup-screen');
         }
-        .expense-info small { display: block; opacity: 0.7; font-size: 0.75rem; margin-top: 4px; }
-        .action-btns { display: flex; gap: 5px; }
-        .action-btns button { width: 35px; height: 35px; padding: 0; display: flex; justify-content: center; align-items: center; border-radius: 8px; font-size: 1.1rem; background: rgba(255,255,255,0.1); border: none; color: white;}
+    } catch(e) { showToast("❌ Erro ao conectar no perfil", true); }
+};
 
-        /* Calendar */
-        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .calendar-header button { width: auto; padding: 5px 15px; background: rgba(255,255,255,0.1); color: white; border-radius: 8px; }
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; font-size: 0.85rem; }
-        .day-name { font-weight: bold; color: var(--primary-gold); padding-bottom: 5px; }
-        .cal-day { padding: 8px 0; border-radius: 8px; cursor: pointer; background: rgba(0,0,0,0.2); transition: 0.2s; position: relative; }
-        .cal-day.active { background: var(--primary-gold); color: #111; font-weight: bold; }
-        .has-event::after { content: ''; width: 6px; height: 6px; background: var(--danger); border-radius: 50%; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); }
+window.setupProfile = async function() {
+    const pass = document.getElementById('setup-profile-pass').value;
+    const phrase = document.getElementById('setup-profile-phrase').value.trim();
+    if(!pass || !phrase) return showToast("⚠️ Preencha a senha e a frase de segurança!", true);
 
-        /* Profile Selection */
-        .profile-btn { padding: 25px; font-size: 1.2rem; margin-bottom: 15px; background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--primary-gold); }
+    await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`), { password: pass, phrase: phrase });
+    showToast("✅ Senha privada criada!");
+    enterProfile(selectedRoleToLogin);
+};
 
-        /* FAB (+) */
-        .fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: var(--primary-gold); color: #111; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); cursor: pointer; z-index: 100; transition: transform 0.2s; }
+window.loginProfile = async function() {
+    const pass = document.getElementById('profile-pass').value;
+    if(!pass) return showToast("⚠️ Digite a sua senha de perfil!", true);
 
-        /* Modal & Toast */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; justify-content: center; align-items: center; padding: 15px; }
-        .modal.active { display: flex; }
-        .modal-content { max-width: 400px; width: 100%; max-height: 90vh; overflow-y: auto; }
+    try {
+        const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${selectedRoleToLogin}`));
+        if(snap.exists() && snap.val().password === pass) {
+            document.getElementById('profile-pass').value = '';
+            enterProfile(selectedRoleToLogin);
+        } else { 
+            showToast("❌ Senha do perfil incorreta!", true); 
+        }
+    } catch(e) {
+        showToast("❌ Erro de conexão com o banco.", true);
+    }
+};
+
+window.openProfileRecovery = function() {
+    document.getElementById('forgot-profile-phrase').value = '';
+    document.getElementById('forgot-profile-new-pass').value = '';
+    document.getElementById('forgot-profile-family-pass').value = '';
+    window.showScreen('profile-forgot-screen');
+};
+
+window.recoverProfile = async function() {
+    const role = document.getElementById('forgot-profile-role').value;
+    const phrase = document.getElementById('forgot-profile-phrase').value.trim();
+    const newPass = document.getElementById('forgot-profile-new-pass').value;
+
+    if(!phrase || !newPass) return showToast("⚠️ Preencha a frase e a nova senha!", true);
+    if(newPass.length < 6) return showToast("⚠️ A senha precisa ter no mínimo 6 caracteres.", true);
+
+    const snap = await get(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}`));
+    if(snap.exists() && snap.val().phrase.toLowerCase() === phrase.toLowerCase()) {
+        await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}/password`), newPass);
+        showToast("✅ Senha do perfil alterada com sucesso!");
+        window.showScreen('profile-screen');
+    } else { showToast("❌ Frase de segurança incorreta!", true); }
+};
+
+window.recoverProfileWithFamilyPass = async function() {
+    const role = document.getElementById('forgot-profile-role').value;
+    const familyPass = document.getElementById('forgot-profile-family-pass').value;
+    const newPass = document.getElementById('forgot-profile-new-pass').value;
+
+    if(!familyPass || !newPass) return showToast("⚠️ Preencha a senha da família e a nova senha!", true);
+    if(newPass.length < 6) return showToast("⚠️ A nova senha precisa ter no mínimo 6 caracteres.", true);
+
+    try {
+        const email = auth.currentUser.email;
+        await signInWithEmailAndPassword(auth, email, familyPass); 
+        await set(ref(dbFirebase, `couples/${currentFamilyId}/profiles/${role}/password`), newPass);
+        showToast("✅ Senha do perfil alterada usando a conta Família!");
+        window.showScreen('profile-screen');
+    } catch(error) { showToast("❌ Senha da Família incorreta!", true); }
+};
+
+function enterProfile(role) {
+    currentUser = role;
+    localStorage.setItem('activeProfile', role);
+    document.getElementById('display-user').innerText = role;
+    window.showScreen('main-screen');
+    listenToCoupleData();
+    if ("Notification" in window) Notification.requestPermission().then(p => { if (p === "granted") checkTodayInstallments(); });
+}
+
+window.logoutProfile = function() {
+    window.showConfirmModal("Sair do Perfil", "Tem certeza que deseja sair da sua área privada?", () => {
+        currentUser = null;
+        localStorage.removeItem('activeProfile');
+        window.showScreen('profile-screen');
+    });
+};
+
+// --- 5. LOG E NOTIFICAÇÕES (POPUP) ---
+function sendNotification(title, body) { if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body: body, icon: 'icon-512.png' }); }
+function logNotification(text) {
+    const now = new Date(); const logStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')} às ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    db.notificationsLog.unshift({ time: logStr, text: text });
+    if(db.notificationsLog.length > 50) db.notificationsLog.pop(); saveDB();
+}
+
+window.openNotifications = function() {
+    const list = document.getElementById('notifications-list'); list.innerHTML = '';
+    if (!db.notificationsLog || db.notificationsLog.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5;">Nenhuma atividade recente.</p>';
+    else db.notificationsLog.forEach(log => { list.innerHTML += `<div class="log-item"><span class="log-time">${log.time}</span>${log.text}</div>`; });
+    document.getElementById('modal-notifications').classList.add('active');
+};
+
+function checkTodayInstallments() {
+    const todayStr = getIsoDate(new Date()); const dueToday = db.entries.filter(e => e.date === todayStr && e.desc.includes('/') && e.type === 'home');
+    dueToday.forEach(e => { sendNotification("💸 Parcela Vencendo Hoje!", `${e.desc} - Valor: R$ ${e.val.toFixed(2)}`); });
+}
+
+// Verifica e exibe o Popup de Aprovação
+function checkForPendingApprovals() {
+    if (!currentUser) return;
+    const pending = db.entries.find(e => e.type === 'home' && e.status === 'pending' && e.owner !== currentUser);
+    if (pending && !poppedUpIds.has(pending.id)) {
+        poppedUpIds.add(pending.id);
+        window.showApprovalPopup(pending);
+    }
+}
+
+window.showApprovalPopup = function(entry) {
+    let splitText = "";
+    if (entry.split === 50) splitText = "Dividido igualmente (50/50)";
+    else if (entry.split === 100) splitText = `${entry.owner.toUpperCase()} pagou tudo (Você deve a metade)`;
+    else if (entry.split === -100) splitText = `Você pagou tudo (O ${entry.owner.toUpperCase()} lhe deve a metade)`;
+    else if (entry.split === 0) splitText = `${entry.owner.toUpperCase()} assumiu tudo (Você não deve nada)`;
+
+    document.getElementById('approval-popup-content').innerHTML = `
+        <strong style="font-size:1.1rem; color:var(--text-light);">${entry.desc}</strong><br>
+        <span style="opacity: 0.8;">Valor: R$ ${entry.val.toFixed(2)} | Data: ${entry.date.split('-').reverse().join('/')}</span><br><br>
+        <strong style="color: var(--primary-gold);">Divisão Solicitada:</strong><br>
+        <span style="color: var(--info);">${splitText}</span>
+    `;
+    
+    document.getElementById('btn-approve-popup').onclick = () => { window.approveEntry(entry.id); window.closeModals(); };
+    document.getElementById('btn-reject-popup').onclick = () => { window.rejectEntry(entry.id); window.closeModals(); };
+    
+    document.getElementById('modal-approval-popup').classList.add('active');
+};
+
+// --- 6. NAVEGAÇÃO E CRUD ---
+window.setTab = function(tab) { currentView = tab; document.getElementById('tab-home').classList.toggle('active', tab === 'home'); document.getElementById('tab-personal').classList.toggle('active', tab === 'personal'); document.getElementById('split-options').style.display = tab === 'home' ? 'block' : 'none'; renderAll(); };
+window.changeMonth = function(dir) { currentDate.setMonth(currentDate.getMonth() + dir); renderAll(); };
+window.selectDay = function(y, m, d) { selectedDate = new Date(y, m, d); renderAll(); };
+
+function renderCalendar() {
+    const container = document.getElementById('calendar-days'); container.innerHTML = '';
+    const year = currentDate.getFullYear(); const month = currentDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    document.getElementById('cal-month-year').innerText = `${monthNames[month]} ${year}`;
+
+    const eventsSet = new Set(db.entries.filter(e => {
+        let correctTab = currentView === 'home' ? (e.type === 'home') : (e.type === 'home' || (e.type === 'personal' && e.owner === currentUser));
+        return correctTab && e.date.startsWith(`${year}-${String(month+1).padStart(2,'0')}`);
+    }).map(e => e.date));
+
+    for (let i = 0; i < firstDay; i++) container.innerHTML += `<div></div>`;
+    for (let i = 1; i <= daysInMonth; i++) {
+        const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+        const isSelected = (i === selectedDate.getDate() && month === selectedDate.getMonth() && year === selectedDate.getFullYear());
+        let classes = 'cal-day' + (isSelected ? ' active' : '') + (eventsSet.has(dateStr) ? ' has-event' : '');
+        container.innerHTML += `<div class="${classes}" onclick="selectDay(${year}, ${month}, ${i})">${i}</div>`;
+    }
+}
+
+function updateCategorySelect() { const select = document.getElementById('exp-cat'); select.innerHTML = ''; db.categories.forEach(cat => { select.innerHTML += `<option value="${cat}">${cat}</option>`; }); }
+
+window.openCategoryModal = function() { 
+    document.getElementById('new-cat-name').value = ''; 
+    document.getElementById('modal-category').classList.add('active'); 
+};
+window.confirmAddCategory = function() { 
+    const newCat = document.getElementById('new-cat-name').value.trim(); 
+    if (newCat) { 
+        db.categories.push(newCat); saveDB(); 
+        updateCategorySelect(); 
+        setTimeout(() => document.getElementById('exp-cat').value = newCat, 50);
+        showToast("✅ Categoria Adicionada!"); 
+        window.closeCategoryModal(); 
+    } 
+};
+
+window.updateSplitOptions = function() {
+    const splitSelect = document.getElementById('exp-split');
+    if (!splitSelect) return;
+    
+    if (currentUser === 'marido') {
+        splitSelect.innerHTML = `
+            <option value="50">Pagamos juntos (50/50)</option>
+            <option value="100">Eu paguei tudo (A Esposa me deve a metade)</option>
+            <option value="-100">A Esposa pagou tudo (Eu devo a metade a ela)</option>
+            <option value="0">Eu assumi tudo (A Esposa não deve nada)</option>
+        `;
+    } else if (currentUser === 'esposa') {
+        splitSelect.innerHTML = `
+            <option value="50">Pagamos juntos (50/50)</option>
+            <option value="100">Eu paguei tudo (O Marido me deve a metade)</option>
+            <option value="-100">O Marido pagou tudo (Eu devo a metade a ele)</option>
+            <option value="0">Eu assumi tudo (O Marido não deve nada)</option>
+        `;
+    }
+};
+
+window.openAddModal = function() { 
+    document.getElementById('edit-id').value = ''; 
+    document.getElementById('form-title').innerText = "Nova Despesa"; 
+    document.getElementById('exp-desc').value = ''; 
+    document.getElementById('exp-val').value = ''; 
+    document.getElementById('exp-date').value = getIsoDate(selectedDate);
+    document.getElementById('exp-alarm-date').value = '';
+    document.getElementById('exp-alarm-time').value = '';
+    
+    window.updateSplitOptions();
+    
+    document.getElementById('parcelas-container').style.display = 'block'; 
+    document.getElementById('modal-add').classList.add('active'); 
+};
+
+window.handleAddEntry = function() {
+    const editId = document.getElementById('edit-id').value; const desc = document.getElementById('exp-desc').value;
+    const valTotal = parseFloat(document.getElementById('exp-val').value); const cat = document.getElementById('exp-cat').value;
+    const date = document.getElementById('exp-date').value; const split = parseInt(document.getElementById('exp-split').value); const parcels = parseInt(document.getElementById('exp-installments').value);
+    
+    const alarmDate = document.getElementById('exp-alarm-date').value;
+    const alarmTime = document.getElementById('exp-alarm-time').value;
+
+    if (!desc || isNaN(valTotal) || !date) return showToast("⚠️ Preencha os campos obrigatórios!", true);
+
+    const saveAction = () => {
+        if (editId) {
+            const idx = db.entries.findIndex(e => e.id == editId);
+            if(idx > -1) { 
+                const splitChanged = db.entries[idx].split !== split;
+                const valChanged = db.entries[idx].val !== valTotal;
+
+                db.entries[idx].desc = desc; db.entries[idx].val = valTotal; 
+                db.entries[idx].category = cat; db.entries[idx].date = date; db.entries[idx].split = split; 
+                
+                // Se for da casa e alterar divisão ou valor, volta pra pendente com o MESMO alerta de um lançamento novo
+                if ((splitChanged || valChanged) && db.entries[idx].type === 'home') {
+                    db.entries[idx].status = 'pending';
+                    db.entries[idx].owner = currentUser;
+                    db.entries[idx].isEdit = true;
+                    
+                    const msg = `🏠 ${currentUser.toUpperCase()} alterou: ${desc} (Aguardando Aprovação)`;
+                    sendNotification("Despesa Pendente", msg);
+                    logNotification(msg);
+                } else {
+                    logNotification(`✏️ ${currentUser.toUpperCase()} atualizou informações simples de "${desc}".`);
+                }
+            }
+        } else {
+            const valParcela = valTotal / parcels; let [y, m, d] = date.split('-').map(Number);
+            for(let i = 0; i < parcels; i++) {
+                let newDate = new Date(y, m - 1 + i, d); let finalDesc = parcels > 1 ? `${desc} (${i+1}/${parcels})` : desc;
+                const baseId = Date.now() + i;
+                
+                db.entries.push({ 
+                    id: baseId, desc: finalDesc, val: valParcela, category: cat, 
+                    date: getIsoDate(newDate), split: split, owner: currentUser, type: currentView,
+                    status: currentView === 'home' ? 'pending' : 'approved',
+                    isEdit: false
+                });
+
+                if (alarmDate && alarmTime && i === 0) {
+                    db.entries.push({ id: baseId + 1000, isAlarm: true, desc: "⏰ Pagar: " + finalDesc, date: alarmDate, time: alarmTime, owner: currentUser, type: currentView });
+                }
+            }
+            if (currentView === 'home') { 
+                const msg = `🏠 ${currentUser.toUpperCase()} lançou: ${desc} (Aguardando Aprovação)`; 
+                sendNotification("Despesa Pendente", msg); 
+                logNotification(msg); 
+            }
+        }
+        saveDB(); showToast("✅ Salvo com sucesso!"); window.closeModals();
+    };
+    if (editId) window.showConfirmModal("Confirmar Alteração", "Deseja salvar as mudanças neste registro?", saveAction); else saveAction();
+};
+
+window.approveEntry = function(id) {
+    const idx = db.entries.findIndex(e => e.id === id);
+    if(idx > -1) {
+        db.entries[idx].status = 'approved';
+        logNotification(`✅ ${currentUser.toUpperCase()} aprovou a despesa "${db.entries[idx].desc}".`);
+        saveDB(); renderAll(); showToast("✅ Despesa aprovada!");
+    }
+};
+
+window.rejectEntry = function(id) {
+    const idx = db.entries.findIndex(e => e.id === id);
+    if(idx > -1) {
+        if(db.entries[idx].isEdit) {
+            db.entries[idx].status = 'rejected';
+            logNotification(`❌ ${currentUser.toUpperCase()} recusou a alteração de "${db.entries[idx].desc}".`);
+            showToast("❌ Edição recusada!");
+        } else {
+            db.entries[idx].type = 'personal'; 
+            db.entries[idx].status = 'approved'; 
+            logNotification(`❌ ${currentUser.toUpperCase()} recusou a nova despesa "${db.entries[idx].desc}". Ela foi para o painel Pessoal do criador.`);
+            showToast("❌ Despesa enviada para o painel Pessoal!");
+        }
+        saveDB(); renderAll(); 
+    }
+};
+
+window.editEntry = function(id) { 
+    const e = db.entries.find(x => x.id === id); 
+    document.getElementById('edit-id').value = e.id; 
+    document.getElementById('form-title').innerText = "Editar Registro"; 
+    document.getElementById('exp-desc').value = e.desc; 
+    document.getElementById('exp-val').value = e.val; 
+    document.getElementById('exp-cat').value = e.category; 
+    document.getElementById('exp-date').value = e.date; 
+    
+    window.updateSplitOptions(); 
+    document.getElementById('exp-split').value = e.split; 
+    
+    document.getElementById('parcelas-container').style.display = 'none'; 
+    document.getElementById('modal-add').classList.add('active'); 
+};
+
+window.deleteEntry = function(id) { window.showConfirmModal("Excluir", "Tem certeza que deseja apagar este registro?", () => { const e = db.entries.find(x => x.id === id); if(e && e.type === 'home') logNotification(`🗑 ${currentUser.toUpperCase()} apagou a despesa "${e.desc}".`); db.entries = db.entries.filter(x => x.id !== id); saveDB(); showToast("🗑 Removido!"); }); };
+
+window.openAlarmModal = function() { document.getElementById('modal-alarm').classList.add('active'); };
+window.handleSaveAlarm = function() { const desc = document.getElementById('alarm-desc').value; const date = document.getElementById('alarm-date').value; const time = document.getElementById('alarm-time').value; if(!desc || !date || !time) return showToast("⚠️ Preencha todos os campos do alarme!", true); db.entries.push({ id: Date.now(), isAlarm: true, desc: "⏰ " + desc, date, time, owner: currentUser, type: currentView }); saveDB(); window.closeModals(); showToast("⏰ Alarme Agendado!"); };
+
+window.showFeiraScreen = function() { window.showScreen('feira-screen'); renderFeira(); }; window.closeFeiraScreen = function() { window.showScreen('main-screen'); };
+window.openFeiraItemModal = function() { document.getElementById('feira-edit-id').value = ''; document.getElementById('feira-item-name').value = ''; document.getElementById('feira-item-val').value = ''; document.getElementById('modal-feira-item').classList.add('active'); };
+window.handleSaveFeiraItem = function() {
+    const id = document.getElementById('feira-edit-id').value; const name = document.getElementById('feira-item-name').value; const val = parseFloat(document.getElementById('feira-item-val').value); const qtd = parseFloat(document.getElementById('feira-item-qtd').value);
+    if(isNaN(val)) return showToast("⚠️ Preencha o valor unitário!", true);
+    const save = () => { if(id) { const idx = db.feiraItems.findIndex(i => i.id == id); db.feiraItems[idx] = { id, name, val, qtd }; } else { db.feiraItems.push({ id: Date.now(), name, val, qtd }); } saveDB(); renderFeira(); window.closeModals(); showToast("✅ Item Salvo!"); };
+    if(id) window.showConfirmModal("Editar Item", "Deseja alterar este item do carrinho?", save); else save();
+};
+function renderFeira() {
+    const list = document.getElementById('feira-list-container'); list.innerHTML = ''; let total = 0;
+    if(db.feiraItems.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5;">O carrinho está vazio.</p>';
+    db.feiraItems.forEach(i => { total += (i.val * i.qtd); list.innerHTML += `<div class="expense-item" style="border-left-color: var(--success);"><div class="expense-info"><strong>${i.name}</strong><small>${i.qtd}x R$ ${i.val.toFixed(2)}</small></div><div class="action-btns"><button onclick="deleteFeiraItem(${i.id})" style="color:var(--danger)">🗑</button></div></div>`; });
+    document.getElementById('feira-total-val').innerText = total.toFixed(2);
+}
+window.deleteFeiraItem = function(id) { window.showConfirmModal("Remover", "Tirar item do carrinho?", () => { db.feiraItems = db.feiraItems.filter(i => i.id !== id); saveDB(); renderFeira(); }); }; window.clearFeira = function() { window.showConfirmModal("Limpar Tudo", "Deseja esvaziar o carrinho?", () => { db.feiraItems = []; saveDB(); renderFeira(); }); };
+
+function renderAll() {
+    renderCalendar();
+    const selY = currentDate.getFullYear(); const selM = currentDate.getMonth();
+    const baseMonthEntries = db.entries.filter(e => { const [y, m] = e.date.split('-'); return parseInt(y) === selY && (parseInt(m)-1) === selM && !e.isAlarm; });
+
+    let viewMonthEntries = []; let totalM = 0; let totalE = 0; let debtM = 0; let debtE = 0; let personalTotal = 0;
+    const homeMonthEntries = baseMonthEntries.filter(e => e.type === 'home' && e.status !== 'pending');
+    
+    homeMonthEntries.forEach(e => {
+        if (e.split === 50) { totalM += (e.val/2); totalE += (e.val/2); }
+        else if (e.owner === 'marido') { if (e.split === -100) { totalE += e.val; debtM += (e.val/2); } else { totalM += e.val; if(e.split === 100) debtE += (e.val/2); } }
+        else if (e.owner === 'esposa') { if (e.split === -100) { totalM += e.val; debtE += (e.val/2); } else { totalE += e.val; if(e.split === 100) debtM += (e.val/2); } }
+    });
+
+    if (currentView === 'home') {
+        viewMonthEntries = homeMonthEntries; 
+        document.getElementById('stat-m').innerText = `R$ ${totalM.toFixed(2)}`; document.getElementById('stat-e').innerText = `R$ ${totalE.toFixed(2)}`;
+        document.getElementById('card-esposa').style.display = 'block'; document.getElementById('card-balance').style.display = 'block'; document.getElementById('label-marido').innerText = 'Total Marido';
         
-        #toast { visibility: hidden; min-width: 250px; background-color: var(--success); color: #fff; text-align: center; border-radius: 12px; padding: 15px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); }
-        #toast.show { visibility: visible; animation: fadein 0.4s, fadeout 0.4s 2.5s; }
-        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
-        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+        const bal = debtE - debtM; 
+        const balEl = document.getElementById('stat-balance');
+        
+        if (bal > 0) { 
+            if (currentUser === 'esposa') { balEl.innerText = `Você deve R$ ${bal.toFixed(2)} ao Marido`; balEl.style.color = "var(--danger)"; } 
+            else { balEl.innerText = `A Esposa lhe deve R$ ${bal.toFixed(2)}`; balEl.style.color = "var(--success)"; }
+        } else if (bal < 0) { 
+            if (currentUser === 'marido') { balEl.innerText = `Você deve R$ ${Math.abs(bal).toFixed(2)} à Esposa`; balEl.style.color = "var(--danger)"; } 
+            else { balEl.innerText = `O Marido lhe deve R$ ${Math.abs(bal).toFixed(2)}`; balEl.style.color = "var(--success)"; }
+        } else { balEl.innerText = "Tudo quitado!"; balEl.style.color = "var(--success)"; }
 
-        .log-item { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 0.85rem; text-align: left; }
-        .log-time { color: var(--primary-gold); font-weight: bold; margin-right: 8px; }
-    </style>
-</head>
-<body>
+    } else {
+        viewMonthEntries = baseMonthEntries.filter(e => (e.type === 'home' && e.status === 'approved') || (e.type === 'personal' && e.owner === currentUser));
+        viewMonthEntries.filter(e => e.type === 'personal' && e.owner === currentUser).forEach(e => personalTotal += e.val);
+        document.getElementById('stat-m').innerText = `R$ ${(personalTotal).toFixed(2)}`; document.getElementById('card-esposa').style.display = 'none';
+        document.getElementById('card-balance').style.display = 'none'; document.getElementById('label-marido').innerText = 'Meu Total Pessoal';
+    }
 
-    <div id="toast"></div>
+    drawChart(viewMonthEntries);
 
-    <div id="login-screen" class="screen glass active">
-        <h1>Login Família</h1>
-        <input type="email" id="login-email" placeholder="E-mail da Família">
-        <input type="password" id="login-pass" placeholder="Senha da Família">
-        <button onclick="attemptLogin()">Entrar</button>
-        <span class="link-text" onclick="showScreen('register-screen')">Cadastrar Nova Família</span>
-        <span class="link-text" onclick="window.showScreen('forgot-screen')" style="margin-top: 5px;">Esqueci a senha</span>
-    </div>
+    const dayStr = getIsoDate(selectedDate); const container = document.getElementById('list-container'); container.innerHTML = '<h4>Lançamentos do dia</h4>';
+    const viewDayEntries = db.entries.filter(e => { if(e.date !== dayStr) return false; if(currentView === 'home') return e.type === 'home' || e.isAlarm; return e.type === 'home' || (e.type === 'personal' && e.owner === currentUser) || (e.isAlarm && e.owner === currentUser); });
 
-    <div id="register-screen" class="screen glass">
-        <h1>Nova Família</h1>
-        <input type="email" id="reg-email" placeholder="E-mail principal">
-        <input type="password" id="reg-pass" placeholder="Senha (mín. 6 caracteres)">
-        <input type="text" id="reg-cpf-1" placeholder="CPF do Marido">
-        <input type="text" id="reg-cpf-2" placeholder="CPF da Esposa">
-        <button onclick="handleRegister()">Criar Conta</button>
-        <span class="link-text" onclick="showScreen('login-screen')">Voltar ao Login</span>
-    </div>
+    if(viewDayEntries.length === 0) container.innerHTML += '<p style="text-align:center; opacity:0.5;">Nenhum registro no dia.</p>';
+    viewDayEntries.forEach(e => {
+        if(e.isAlarm) { 
+            container.innerHTML += `<div class="expense-item" style="border-color: var(--info);"><div class="expense-info"><strong>${e.desc}</strong><small>${e.time} • Por: ${e.owner}</small></div><div class="action-btns"><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button></div></div>`; 
+        } 
+        else { 
+            const icon = e.type === 'home' ? '🏠' : '👤'; 
+            let statusTag = ''; let actionHtml = '';
 
-    <div id="forgot-screen" class="screen glass">
-        <h1>Recuperar Conta</h1>
-        <input type="email" id="forgot-email" placeholder="Digite o e-mail cadastrado">
-        <button onclick="handleForgotPassword()">Enviar Link de Redefinição</button>
-        <span class="link-text" onclick="showScreen('login-screen')">Voltar</span>
-    </div>
+            let splitTextList = "";
+            if (e.split === 50) splitTextList = "50/50";
+            else if (e.split === 100) splitTextList = `${e.owner.toUpperCase()} pagou tudo`;
+            else if (e.split === -100) splitTextList = `O outro pagou tudo`;
+            else if (e.split === 0) splitTextList = `${e.owner.toUpperCase()} assumiu`;
 
-    <div id="profile-screen" class="screen glass">
-        <h1>Quem está usando?</h1>
-        <button class="profile-btn" onclick="selectProfile('marido')">🧔 Marido</button>
-        <button class="profile-btn" onclick="selectProfile('esposa')">👩 Esposa</button>
-        <button class="btn-outline" onclick="logoutFamily()">Sair da Conta Família</button>
-    </div>
+            if (e.type === 'home' && e.status === 'pending') {
+                statusTag = `<br><span style="font-size: 0.7rem; background: var(--danger); padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">⏳ Pendente (${splitTextList})</span>`;
+                if (e.owner !== currentUser) { actionHtml = `<button onclick="approveEntry(${e.id})" style="color:var(--success)">✅</button><button onclick="rejectEntry(${e.id})" style="color:var(--danger)">❌</button>`; } 
+                else { actionHtml = `<button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; }
+            } else if (e.type === 'home' && e.status === 'rejected') {
+                statusTag = `<br><span style="font-size: 0.7rem; background: #555; padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">❌ Recusado (${splitTextList})</span>`;
+                actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
+            } else {
+                if(e.type === 'home') statusTag = `<br><span style="font-size: 0.7rem; color: var(--success); display: inline-block; margin-top: 4px;">✅ Aprovado (${splitTextList})</span>`;
+                actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`;
+            }
+            container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${e.val.toFixed(2)} - ${e.category} ${statusTag}</small></div><div class="action-btns">${actionHtml}</div></div>`; 
+        }
+    });
+}
 
-    <div id="profile-login-screen" class="screen glass">
-        <h1 id="profile-login-title">Área Privada</h1>
-        <input type="password" id="profile-pass" placeholder="Sua senha de perfil">
-        <button onclick="loginProfile()">Acessar</button>
-        <span class="link-text" onclick="openProfileRecovery()">Esqueci minha senha de perfil</span>
-        <span class="link-text" onclick="showScreen('profile-screen')">Voltar</span>
-    </div>
+function drawChart(data) {
+    const canvas = document.getElementById('expense-chart'); const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,160,160); const legend = document.getElementById('chart-legend'); legend.innerHTML = '';
+    let cats = {}; let total = 0; data.forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.val; total += e.val; });
+    if(total === 0) { ctx.beginPath(); ctx.arc(80, 80, 75, 0, 2 * Math.PI); ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill(); return; }
+    let start = 0; let i = 0;
+    for(let c in cats) { let slice = (cats[c]/total) * 2 * Math.PI; ctx.beginPath(); ctx.moveTo(80,80); ctx.arc(80,80,75,start,start+slice); let color = chartColors[i % chartColors.length]; ctx.fillStyle = color; ctx.fill(); let percent = ((cats[c]/total)*100).toFixed(1); legend.innerHTML += `<div style="font-size:0.75rem; background:rgba(0,0,0,0.2); padding:2px 8px; border-radius:10px; display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; background:${color}; border-radius:50%; display:inline-block;"></span>${c}: ${percent}%</div>`; start += slice; i++; }
+}
 
-    <div id="profile-setup-screen" class="screen glass">
-        <h1 id="profile-setup-title">Criar Senha de Perfil</h1>
-        <p style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 10px;">Esta senha é só sua para sua área pessoal.</p>
-        <input type="password" id="setup-profile-pass" placeholder="Defina sua senha">
-        <input type="text" id="setup-profile-phrase" placeholder="Frase de segurança (para recuperar)">
-        <button onclick="setupProfile()">Salvar e Entrar</button>
-    </div>
+setInterval(() => { const now = new Date(); const d = getIsoDate(now); const t = String(now.getHours()).padStart(2,'0') + ":" + String(now.getMinutes()).padStart(2,'0'); db.entries.forEach(e => { if(e.isAlarm && e.date === d && e.time === t && !e.triggered) { sendNotification("⏰ Lembrete!", e.desc); e.triggered = true; saveDB(); } }); }, 60000);
 
-    <div id="profile-forgot-screen" class="screen glass">
-        <h1>Recuperar Perfil</h1>
-        <select id="forgot-profile-role"><option value="marido">Marido</option><option value="esposa">Esposa</option></select>
-        <hr style="opacity: 0.2; margin: 10px 0;">
-        <label style="font-size: 0.8rem;">Opção A: Frase de Segurança</label>
-        <input type="text" id="forgot-profile-phrase" placeholder="Sua frase de segurança">
-        <button onclick="recoverProfile()">Redefinir com Frase</button>
-        <hr style="opacity: 0.2; margin: 10px 0;">
-        <label style="font-size: 0.8rem;">Opção B: Senha da Família</label>
-        <input type="password" id="forgot-profile-family-pass" placeholder="Senha da Conta Família">
-        <input type="password" id="forgot-profile-new-pass" placeholder="Nova Senha para o Perfil">
-        <button onclick="recoverProfileWithFamilyPass()">Redefinir com Conta Família</button>
-        <span class="link-text" onclick="showScreen('profile-screen')">Cancelar</span>
-    </div>
+// --- 7. OBSERVADOR DE AUTENTICAÇÃO ---
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        currentFamilyId = user.uid;
+        const savedProfile = localStorage.getItem('activeProfile');
+        if (savedProfile) {
+            window.selectProfile(savedProfile);
+        } else {
+            window.showScreen('profile-screen');
+        }
+    } else {
+        currentFamilyId = null; currentUser = null; localStorage.removeItem('activeProfile');
+        window.showScreen('login-screen');
+    }
+});
 
-    <div id="main-screen" class="screen" style="max-width: 800px;">
-        <header class="glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px 20px;">
-            <h3 style="margin:0;">Olá, <span id="display-user"></span></h3>
-            <div style="display: flex; gap: 8px;">
-                <button onclick="openNotifications()" class="btn-outline" style="width: 40px; padding: 5px;">🔔</button>
-                <button onclick="logoutProfile()" class="btn-outline" style="width: auto; padding: 5px 15px;">Sair</button>
-            </div>
-        </header>
-
-        <div class="tabs glass" style="padding: 5px;">
-            <div class="tab active" id="tab-home" onclick="setTab('home')">🏠 Casa</div>
-            <div class="tab" id="tab-personal" onclick="setTab('personal')">👤 Pessoal</div>
-        </div>
-
-        <div class="tools-row">
-            <button class="tool-btn glass" onclick="openAlarmModal()">⏰ Lembrete</button>
-            <button class="tool-btn glass" onclick="showFeiraScreen()">🛒 Feira</button>
-            <button class="tool-btn glass" onclick="installApp()" id="btn-install" style="display:none;">📲 Instalar</button>
-        </div>
-
-        <div class="glass" style="margin-bottom: 15px;">
-            <div class="calendar-header">
-                <button onclick="changeMonth(-1)">❮</button>
-                <h4 id="cal-month-year" style="margin:0;">Mês Ano</h4>
-                <button onclick="changeMonth(1)">❯</button>
-            </div>
-            <div class="calendar-grid">
-                <div class="day-name">D</div><div class="day-name">S</div><div class="day-name">T</div><div class="day-name">Q</div><div class="day-name">Q</div><div class="day-name">S</div><div class="day-name">S</div>
-            </div>
-            <div id="calendar-days" class="calendar-grid"></div>
-        </div>
-
-        <div class="summary-grid">
-            <div class="card glass" id="card-marido"><span id="label-marido">Total Marido</span><strong id="stat-m">R$ 0</strong></div>
-            <div class="card glass" id="card-esposa">Total Esposa<strong id="stat-e">R$ 0</strong></div>
-            <div id="card-balance" class="card glass" style="grid-column: span 2;">
-                Situação: <strong id="stat-balance">R$ 0</strong>
-            </div>
-        </div>
-
-        <div class="glass" style="display: flex; flex-direction: column; align-items: center; margin-bottom: 15px;">
-            <canvas id="expense-chart" width="160" height="160"></canvas>
-            <div id="chart-legend" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;"></div>
-        </div>
-
-        <div class="glass" id="list-container"></div>
-        <div class="fab" onclick="openAddModal()">+</div>
-    </div>
-
-    <div id="feira-screen" class="screen" style="max-width: 800px;">
-        <div class="glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <button class="btn-outline" onclick="closeFeiraScreen()" style="width: auto; padding: 5px 15px;">❮ Voltar</button>
-            <h3 style="margin: 0;">Carrinho 🛒</h3>
-            <button onclick="clearFeira()" style="width: auto; background: var(--danger); color: white; padding: 5px 15px;">Limpar</button>
-        </div>
-        <div class="glass" style="text-align: center; margin-bottom: 15px;">
-            <p style="opacity: 0.7;">Total Estimado</p>
-            <h2 style="color: var(--success); font-size: 2.2rem;">R$ <span id="feira-total-val">0.00</span></h2>
-        </div>
-        <div id="feira-list-container"></div>
-        <div class="fab" onclick="openFeiraItemModal()" style="background: var(--success); color: white;">+</div>
-    </div>
-
-    <div id="modal-confirm" class="modal">
-        <div class="glass modal-content" style="text-align:center;">
-            <h3 id="confirm-title" style="color: var(--danger);">Confirmar</h3>
-            <p id="confirm-msg" style="margin: 20px 0;"></p>
-            <div style="display:flex; gap:10px;">
-                <button onclick="closeModals()" class="btn-outline">Não</button>
-                <button id="btn-confirm-action" style="background: var(--danger); color: white;">Sim</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-add" class="modal">
-        <div class="glass modal-content">
-            <h3 id="form-title">Nova Despesa</h3>
-            <input type="hidden" id="edit-id">
-            <input type="text" id="exp-desc" placeholder="Descrição">
-            <input type="number" id="exp-val" placeholder="Valor Total (R$)">
-            <div style="display:flex; gap:5px;">
-                <select id="exp-cat"></select>
-                <button onclick="openCategoryModal()" style="width: 50px;">+</button>
-            </div>
-            <input type="date" id="exp-date">
-            <div id="parcelas-container">
-                <label style="font-size: 0.75rem; color: var(--primary-gold);">Parcelas</label>
-                <select id="exp-installments">
-                    <option value="1">1x (À vista)</option>
-                    <option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option>
-                    <option value="12">12x</option><option value="24">24x</option>
-                </select>
-            </div>
-            <div id="split-options">
-                <label style="font-size: 0.75rem; color: var(--primary-gold);">Como dividir?</label>
-                <select id="exp-split"></select>
-            </div>
-            <label style="font-size: 0.75rem; color: var(--primary-gold);">Despertador (Opcional)</label>
-            <div style="display:flex; gap:5px;">
-                <input type="date" id="exp-alarm-date">
-                <input type="time" id="exp-alarm-time">
-            </div>
-            <div style="display:flex; gap:10px; margin-top:10px;">
-                <button onclick="closeModals()" class="btn-outline">Cancelar</button>
-                <button onclick="handleAddEntry()">Salvar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-alarm" class="modal">
-        <div class="glass modal-content">
-            <h3>Agendar Lembrete ⏰</h3>
-            <input type="text" id="alarm-desc" placeholder="O que lembrar?">
-            <input type="date" id="alarm-date">
-            <input type="time" id="alarm-time">
-            <div style="display:flex; gap:10px; margin-top:10px;">
-                <button onclick="closeModals()" class="btn-outline">Sair</button>
-                <button onclick="handleSaveAlarm()">Agendar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-feira-item" class="modal">
-        <div class="glass modal-content">
-            <h3>Item do Carrinho</h3>
-            <input type="hidden" id="feira-edit-id">
-            <input type="text" id="feira-item-name" placeholder="Produto (ex: Arroz)">
-            <input type="number" id="feira-item-val" placeholder="Valor Unitário">
-            <input type="number" id="feira-item-qtd" value="1" placeholder="Qtd">
-            <div style="display:flex; gap:10px; margin-top:10px;">
-                <button onclick="closeModals()" class="btn-outline">Cancelar</button>
-                <button onclick="handleSaveFeiraItem()">Adicionar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-notifications" class="modal">
-        <div class="glass modal-content">
-            <h3>Atividade Recente</h3>
-            <div id="notifications-list" style="max-height: 300px; overflow-y: auto;"></div>
-            <button onclick="closeModals()" style="margin-top: 15px;">Fechar</button>
-        </div>
-    </div>
-
-    <div id="modal-approval-popup" class="modal">
-        <div class="glass modal-content">
-            <h3 style="color: var(--info);">Nova Despesa da Casa</h3>
-            <div id="approval-popup-content" style="margin: 15px 0; text-align: left;"></div>
-            <div style="display:flex; gap:10px;">
-                <button id="btn-reject-popup" style="background: var(--danger); color: white;">Recusar</button>
-                <button id="btn-approve-popup" style="background: var(--success); color: white;">Aprovar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-category" class="modal">
-        <div class="glass modal-content">
-            <h3>Nova Categoria</h3>
-            <input type="text" id="new-cat-name" placeholder="Nome da categoria">
-            <div style="display:flex; gap:10px;">
-                <button onclick="closeCategoryModal()" class="btn-outline">Voltar</button>
-                <button onclick="confirmAddCategory()">Adicionar</button>
-            </div>
-        </div>
-    </div>
-
-    <script type="module" src="script.js"></script>
-
-</body>
-</html>
-"""
-
-with open("index.html", "w", encoding="utf-8") as f:
-    f.write(html_content)
-
-print("index.html gerado com sucesso.")
+// PWA: Instalação
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
+let deferredPrompt; window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; const btn = document.getElementById('btn-install'); if(btn) btn.style.display = 'inline-block'; });
+window.installApp = function() { if(deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; document.getElementById('btn-install').style.display = 'none'; }); } };
