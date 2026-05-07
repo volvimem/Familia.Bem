@@ -26,7 +26,7 @@ let currentDate = new Date();
 let selectedDate = new Date(); 
 const chartColors = ['#d4af37', '#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1c40f', '#1abc9c'];
 
-let db = { categories: [], entries: [], feiraItems: [], notificationsLog: [], cpfs: {}, profiles: {} };
+let db = { categories: [], entries: [], feiraItems: [], notificationsLog: [], petLog: [], cpfs: {}, profiles: {} };
 let poppedUpIds = new Set(); // Controle para não repetir o popup da mesma despesa
 
 // --- 1. FUNÇÕES GERAIS E UI ---
@@ -82,8 +82,9 @@ function listenToCoupleData() {
             if (!db.feiraItems) db.feiraItems = [];
             if (!db.notificationsLog) db.notificationsLog = [];
             if (!db.profiles) db.profiles = {};
+            if (!db.petLog) db.petLog = []; // <-- Inicia a lista de Pets se ela não existir
         } else {
-            db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: {}, profiles: {} };
+            db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], petLog: [], cpfs: {}, profiles: {} };
             saveDB();
         }
         updateCategorySelect(); 
@@ -106,7 +107,8 @@ window.handleRegister = async function() {
         showToast("⏳ Criando conta...");
         const userCred = await createUserWithEmailAndPassword(auth, email, pass);
         currentFamilyId = userCred.user.uid;
-        db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], cpfs: { titular: cpf1, conjuge: cpf2 }, profiles: {} };
+        // Inicia banco zerado com Pets
+        db = { categories: ['Alimentação', 'Contas da Casa', 'Lazer', 'Viagem', 'Mercado'], entries: [], feiraItems: [], notificationsLog: [], petLog: [], cpfs: { titular: cpf1, conjuge: cpf2 }, profiles: {} };
         saveDB();
         showToast("✅ Família cadastrada com sucesso!");
     } catch(error) {
@@ -607,6 +609,72 @@ onAuthStateChanged(auth, (user) => {
         window.showScreen('login-screen');
     }
 });
+
+// --- 8. HISTÓRICO DOS PETS ---
+window.openPetLog = function() {
+    renderPetLog();
+    
+    // Regra da Lixeira: Se for o marido, exibe. Se não for, esconde.
+    const trashBtn = document.getElementById('btn-clear-pet-log');
+    if (currentUser === 'marido') {
+        trashBtn.style.display = 'block';
+    } else {
+        trashBtn.style.display = 'none';
+    }
+    
+    document.getElementById('modal-pet-log').classList.add('active');
+};
+
+window.addPetLog = function() {
+    const desc = document.getElementById('pet-log-desc').value.trim();
+    if (!desc) return showToast("⚠️ Digite a atividade do Pet!", true);
+    
+    const now = new Date();
+    const dateStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')} às ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    
+    if(!db.petLog) db.petLog = [];
+    
+    // Insere no topo da lista
+    db.petLog.unshift({ id: Date.now(), text: desc, time: dateStr, author: currentUser });
+    saveDB();
+    
+    document.getElementById('pet-log-desc').value = '';
+    renderPetLog();
+    showToast("🐾 Salvo no histórico dos Pets!");
+};
+
+function renderPetLog() {
+    const list = document.getElementById('pet-log-list');
+    list.innerHTML = '';
+    
+    if (!db.petLog || db.petLog.length === 0) {
+        list.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:10px;">Nenhum histórico registrado.</p>';
+        return;
+    }
+    
+    db.petLog.forEach(log => {
+        list.innerHTML += `
+            <div class="log-item" style="border-left: 3px solid var(--primary-gold); margin-bottom: 8px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                <span class="log-time" style="font-size: 0.75rem;">${log.time}</span><br>
+                <strong>${log.text}</strong>
+                <div style="font-size: 0.7rem; opacity: 0.6; margin-top: 3px;">Registrado por: ${log.author.toUpperCase()}</div>
+            </div>`;
+    });
+}
+
+window.clearPetLog = function() {
+    // Bloqueio de segurança extra
+    if(currentUser !== 'marido') {
+        return showToast("❌ Apenas o Marido tem permissão para apagar o histórico.", true);
+    }
+    
+    window.showConfirmModal("Apagar Tudo", "Deseja deletar todo o histórico dos Pets? Isso não pode ser desfeito.", () => {
+        db.petLog = []; 
+        saveDB();
+        renderPetLog();
+        showToast("🗑️ Histórico apagado!");
+    });
+};
 
 // PWA: Instalação
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
