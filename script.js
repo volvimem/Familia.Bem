@@ -205,7 +205,7 @@ window.logoutProfile = function() {
     });
 };
 
-// --- LOG E ATIVIDADES ---
+// --- LOG E ATIVIDADES (Com lixeiras individuais) ---
 function sendNotification(title, body) { if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body: body, icon: 'icon-512.png' }); }
 function logNotification(text) {
     const now = new Date(); const logStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')} às ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -215,16 +215,37 @@ function logNotification(text) {
 
 window.openNotifications = function() {
     const list = document.getElementById('notifications-list'); list.innerHTML = '';
-    if (!db.notificationsLog || db.notificationsLog.length === 0) { list.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:10px;">Nenhuma atividade recente.</p>'; } 
-    else { db.notificationsLog.forEach(log => { list.innerHTML += `<div class="log-item"><span class="log-time">${log.time}</span>${log.text}</div>`; }); }
+    
+    if (!db.notificationsLog || db.notificationsLog.length === 0) { 
+        list.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:10px;">Nenhuma atividade recente.</p>'; 
+    } else { 
+        db.notificationsLog.forEach((log, index) => { 
+            let trashBtn = '';
+            if (currentUser === 'marido') {
+                trashBtn = `<button onclick="deleteSingleNotification(${index})" style="background:none; border:none; color:var(--danger); font-size:1.1rem;">🗑️</button>`;
+            }
+            list.innerHTML += `
+                <div class="log-item" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="flex:1;"><span class="log-time">${log.time}</span>${log.text}</div>
+                    <div>${trashBtn}</div>
+                </div>`; 
+        }); 
+    }
     
     const trashBtn = document.getElementById('btn-clear-notifications');
     if (currentUser === 'marido') trashBtn.style.display = 'block'; else trashBtn.style.display = 'none';
     document.getElementById('modal-notifications').classList.add('active');
 };
 
+window.deleteSingleNotification = function(index) {
+    if(currentUser !== 'marido') return;
+    db.notificationsLog.splice(index, 1);
+    saveDB();
+    openNotifications(); // Atualiza a lista na hora
+};
+
 window.clearNotifications = function() {
-    if(currentUser !== 'marido') return showToast("❌ Apenas o Marido tem permissão para limpar.", true);
+    if(currentUser !== 'marido') return;
     window.showConfirmModal("Limpar Atividades", "Deseja apagar todo o registro de atividades?", () => {
         db.notificationsLog = []; saveDB(); openNotifications(); showToast("🗑️ Atividades apagadas!");
     });
@@ -313,7 +334,6 @@ window.confirmAddCategory = function() {
     } 
 };
 
-// ATUALIZADO: Agora aplica opções de Divisão nos Pets também!
 window.updateSplitOptions = function() {
     const splitSelect = document.getElementById('exp-split');
     const petSplitSelect = document.getElementById('pet-log-split');
@@ -386,9 +406,12 @@ window.handleSaveFeiraItem = function() { const id = document.getElementById('fe
 function renderFeira() { const list = document.getElementById('feira-list-container'); list.innerHTML = ''; let total = 0; if(db.feiraItems.length === 0) list.innerHTML = '<p style="text-align:center; opacity:0.5;">O carrinho está vazio.</p>'; db.feiraItems.forEach(i => { total += (i.val * i.qtd); list.innerHTML += `<div class="expense-item" style="border-left-color: var(--success);"><div class="expense-info"><strong>${i.name}</strong><small>${i.qtd}x R$ ${window.formatCurrency(i.val)}</small></div><div class="action-btns"><button onclick="deleteFeiraItem(${i.id})" style="color:var(--danger)">🗑</button></div></div>`; }); document.getElementById('feira-total-val').innerText = window.formatCurrency(total); }
 window.deleteFeiraItem = function(id) { window.showConfirmModal("Remover", "Tirar item do carrinho?", () => { db.feiraItems = db.feiraItems.filter(i => i.id !== id); saveDB(); renderFeira(); }); }; window.clearFeira = function() { window.showConfirmModal("Limpar Tudo", "Deseja esvaziar o carrinho?", () => { db.feiraItems = []; saveDB(); renderFeira(); }); };
 
+// --- RENDERIZAÇÃO PRINCIPAL (Com Gráfico Inteligente e Lançamento do Mês) ---
 function renderAll() {
     renderCalendar();
     const selY = currentDate.getFullYear(); const selM = currentDate.getMonth();
+    
+    // Todas as despesas base do mês atual (independente de ser casa ou pessoal)
     const baseMonthEntries = db.entries.filter(e => { const [y, m] = e.date.split('-'); return parseInt(y) === selY && (parseInt(m)-1) === selM && !e.isAlarm; });
 
     let viewMonthEntries = []; let totalM = 0; let totalE = 0; let debtM = 0; let debtE = 0; let personalTotal = 0;
@@ -415,11 +438,24 @@ function renderAll() {
     }
 
     drawChart(viewMonthEntries);
-    const dayStr = getIsoDate(selectedDate); const container = document.getElementById('list-container'); container.innerHTML = '<h4>Lançamentos do dia</h4>';
-    const viewDayEntries = db.entries.filter(e => { if(e.date !== dayStr) return false; if(currentView === 'home') return e.type === 'home' || e.isAlarm; return e.type === 'home' || (e.type === 'personal' && e.owner === currentUser) || (e.isAlarm && e.owner === currentUser); });
+    
+    // MUDANÇA: Lançamentos do MÊS (e não apenas do dia)
+    const monthPrefix = `${selY}-${String(selM+1).padStart(2,'0')}`;
+    const container = document.getElementById('list-container'); 
+    container.innerHTML = '<h4 style="text-align:left; font-size:1rem; color:white; margin-bottom: 10px;">Lançamentos do Mês</h4>';
+    
+    let viewListEntries = db.entries.filter(e => { 
+        if(!e.date.startsWith(monthPrefix)) return false; 
+        if(currentView === 'home') return e.type === 'home' || e.isAlarm; 
+        return e.type === 'home' || (e.type === 'personal' && e.owner === currentUser) || (e.isAlarm && e.owner === currentUser); 
+    });
 
-    if(viewDayEntries.length === 0) container.innerHTML += '<p style="text-align:center; opacity:0.5;">Nenhum registro no dia.</p>';
-    viewDayEntries.forEach(e => {
+    // Ordena do mais recente para o mais antigo
+    viewListEntries.sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id);
+
+    if(viewListEntries.length === 0) container.innerHTML += '<p style="text-align:center; opacity:0.5;">Nenhum registro no mês.</p>';
+    
+    viewListEntries.forEach(e => {
         if(e.isAlarm) { container.innerHTML += `<div class="expense-item" style="border-color: var(--info);"><div class="expense-info"><strong>${e.desc}</strong><small>${e.time} • Por: ${e.owner}</small></div><div class="action-btns"><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button></div></div>`; } 
         else { 
             const icon = e.category === 'Pet' ? '🐾' : (e.type === 'home' ? '🏠' : '👤'); 
@@ -433,12 +469,65 @@ function renderAll() {
             if (e.type === 'home' && e.status === 'pending') { statusTag = `<br><span style="font-size: 0.7rem; background: var(--danger); padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">⏳ Pendente (${splitTextList})</span>`; if (e.owner !== currentUser) { actionHtml = `<button onclick="approveEntry(${e.id})" style="color:var(--success)">✅</button><button onclick="rejectEntry(${e.id})" style="color:var(--danger)">❌</button>`; } else { actionHtml = `<button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; } } 
             else if (e.type === 'home' && e.status === 'rejected') { statusTag = `<br><span style="font-size: 0.7rem; background: #555; padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">❌ Recusado (${splitTextList})</span>`; actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; } 
             else { if(e.type === 'home') statusTag = `<br><span style="font-size: 0.7rem; color: var(--success); display: inline-block; margin-top: 4px;">✅ Aprovado (${splitTextList})</span>`; actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; }
-            container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${window.formatCurrency(e.val)} - ${e.category} ${statusTag}</small></div><div class="action-btns">${actionHtml}</div></div>`; 
+            
+            // Adicionado a data da compra no item para ficar claro, já que agora é do mês todo
+            const displayDate = e.date.split('-').reverse().join('/');
+            
+            container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${window.formatCurrency(e.val)} - ${e.category} - ${displayDate} ${statusTag}</small></div><div class="action-btns">${actionHtml}</div></div>`; 
         }
     });
 }
 
-function drawChart(data) { const canvas = document.getElementById('expense-chart'); const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,160,160); const legend = document.getElementById('chart-legend'); legend.innerHTML = ''; let cats = {}; let total = 0; data.forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.val; total += e.val; }); if(total === 0) { ctx.beginPath(); ctx.arc(80, 80, 75, 0, 2 * Math.PI); ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill(); return; } let start = 0; let i = 0; for(let c in cats) { let slice = (cats[c]/total) * 2 * Math.PI; ctx.beginPath(); ctx.moveTo(80,80); ctx.arc(80,80,75,start,start+slice); let color = chartColors[i % chartColors.length]; ctx.fillStyle = color; ctx.fill(); let percent = ((cats[c]/total)*100).toFixed(1); legend.innerHTML += `<div style="font-size:0.75rem; background:rgba(0,0,0,0.2); padding:2px 8px; border-radius:10px; display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; background:${color}; border-radius:50%; display:inline-block;"></span>${c}: ${percent}%</div>`; start += slice; i++; } }
+// GRÁFICO DE ROSCA INTELIGENTE
+function drawChart(data) { 
+    const canvas = document.getElementById('expense-chart'); 
+    const ctx = canvas.getContext('2d'); 
+    const legend = document.getElementById('chart-legend'); 
+    ctx.clearRect(0,0,160,160); 
+    legend.innerHTML = ''; 
+    
+    let cats = {}; let total = 0; 
+    data.forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.val; total += e.val; }); 
+    
+    const centerX = 80; const centerY = 80; const outerRadius = 75; const innerRadius = 50;
+
+    if(total === 0) { 
+        ctx.beginPath(); ctx.arc(centerX, centerY, outerRadius, 0, 2 * Math.PI); ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill(); 
+        ctx.beginPath(); ctx.arc(centerX, centerY, innerRadius, 0, 2 * Math.PI); ctx.fillStyle = '#24243e'; ctx.fill();
+        return; 
+    } 
+    
+    let start = 0; let i = 0; 
+    // Ordena as categorias do maior gasto pro menor
+    const sortedCats = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+
+    for (let [c, val] of sortedCats) { 
+        let slice = (val / total) * 2 * Math.PI; 
+        let color = chartColors[i % chartColors.length]; 
+        
+        ctx.beginPath(); ctx.moveTo(centerX, centerY); ctx.arc(centerX, centerY, outerRadius, start, start + slice); ctx.fillStyle = color; ctx.fill(); 
+        
+        let percent = ((val / total) * 100).toFixed(1); 
+        legend.innerHTML += `
+            <div style="font-size:0.75rem; background:rgba(0,0,0,0.2); padding:6px 10px; border-radius:10px; display:flex; align-items:center; justify-content:space-between; width:100%;">
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <span style="width:10px; height:10px; background:${color}; border-radius:50%; display:inline-block;"></span>
+                    <strong style="color:var(--text-light);">${c}</strong>
+                </div>
+                <span style="color:var(--primary-gold);">R$ ${window.formatCurrency(val)} (${percent}%)</span>
+            </div>`; 
+        start += slice; i++; 
+    } 
+
+    // Cria o "buraco" da Rosca
+    ctx.beginPath(); ctx.arc(centerX, centerY, innerRadius, 0, 2 * Math.PI); ctx.fillStyle = '#24243e'; ctx.fill();
+    
+    // Texto do Total no meio
+    ctx.fillStyle = '#f5f5f5'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('TOTAL', centerX, centerY - 8);
+    ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#d4af37';
+    ctx.fillText('R$ ' + window.formatCurrency(total), centerX, centerY + 8);
+}
 
 setInterval(() => { const now = new Date(); const d = getIsoDate(now); const t = String(now.getHours()).padStart(2,'0') + ":" + String(now.getMinutes()).padStart(2,'0'); db.entries.forEach(e => { if(e.isAlarm && e.date === d && e.time === t && !e.triggered) { sendNotification("⏰ Lembrete!", e.desc); e.triggered = true; saveDB(); } }); }, 60000);
 
@@ -447,7 +536,7 @@ onAuthStateChanged(auth, (user) => { if (user) { currentFamilyId = user.uid; con
 // --- SISTEMA DOS PETS ---
 window.openPetLog = function() {
     document.getElementById('pet-search').value = ''; 
-    window.updateSplitOptions(); // Carrega as opções de divisão!
+    window.updateSplitOptions(); 
     renderPetLog();
     document.getElementById('modal-pet-log').classList.add('active');
 };
@@ -456,7 +545,7 @@ window.addPetLog = function() {
     const desc = document.getElementById('pet-log-desc').value.trim();
     const valInput = document.getElementById('pet-log-val').value.replace(',', '.');
     const val = parseFloat(valInput);
-    const split = parseInt(document.getElementById('pet-log-split').value) || 50; // Pega a divisão escolhida!
+    const split = parseInt(document.getElementById('pet-log-split').value) || 50; 
     
     if (!desc || isNaN(val)) return showToast("⚠️ Digite a descrição e o valor!", true);
     
