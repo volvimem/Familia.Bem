@@ -3,214 +3,326 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>Finanças Premium v11</title>
+    <title>Finanças Família Bem - Premium</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css">
-    <meta name="theme-color" content="#0f0c29">
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --primary-gold: #d4af37;
+            --text-light: #f5f5f5;
+            --danger: #ff4757;
+            --success: #2ed573;
+            --info: #3498db;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: var(--bg-gradient); color: var(--text-light); min-height: 100vh; padding: 15px; padding-bottom: 80px; }
+
+        .glass {
+            background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border); border-radius: 20px; padding: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .screen { display: none; max-width: 500px; margin: auto; animation: fadeIn 0.4s ease; }
+        .screen.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        h1, h2, h3, h4 { color: var(--primary-gold); text-align: center; margin-bottom: 15px; }
+        
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: none; outline: none; font-size: 1rem; }
+        input, select { background: rgba(255,255,255,0.08); color: white; border: 1px solid var(--glass-border); color-scheme: dark; }
+        select option { color: #111; background: #fff; }
+        
+        button { background: var(--primary-gold); color: #111; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-outline { background: transparent; border: 1px solid var(--primary-gold); color: var(--primary-gold); }
+        .link-text { color: var(--primary-gold); font-size: 0.85rem; cursor: pointer; display: block; margin-top: 15px; text-align: center; text-decoration: underline; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 10px; }
+        .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; border-bottom: 2px solid transparent; opacity: 0.5; }
+        .tab.active { border-color: var(--primary-gold); opacity: 1; color: var(--primary-gold); font-weight: bold; }
+        
+        /* Tools */
+        .tools-row { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .tool-btn { flex: 1; min-width: 80px; background: rgba(255,255,255,0.1); color: var(--text-light); font-size: 0.85rem; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; border-radius: 12px; border: 1px solid var(--glass-border); }
+
+        /* Cards */
+        .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .card { padding: 10px; text-align: center; font-size: 0.85rem; border-radius: 15px;}
+        .card strong { display: block; font-size: 1.1rem; color: var(--primary-gold); }
+        
+        .expense-item { 
+            background: rgba(0,0,0,0.3); padding: 12px; border-radius: 12px; margin-bottom: 10px;
+            display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary-gold);
+        }
+        .expense-info small { display: block; opacity: 0.7; font-size: 0.75rem; margin-top: 4px; }
+        .action-btns { display: flex; gap: 5px; }
+        .action-btns button { width: 35px; height: 35px; padding: 0; display: flex; justify-content: center; align-items: center; border-radius: 8px; font-size: 1.1rem; background: rgba(255,255,255,0.1); border: none; color: white;}
+
+        /* Calendar */
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .calendar-header button { width: auto; padding: 5px 15px; background: rgba(255,255,255,0.1); color: white; border-radius: 8px; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; font-size: 0.85rem; }
+        .day-name { font-weight: bold; color: var(--primary-gold); padding-bottom: 5px; }
+        .cal-day { padding: 8px 0; border-radius: 8px; cursor: pointer; background: rgba(0,0,0,0.2); transition: 0.2s; position: relative; }
+        .cal-day.active { background: var(--primary-gold); color: #111; font-weight: bold; }
+        .has-event::after { content: ''; width: 6px; height: 6px; background: var(--danger); border-radius: 50%; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); }
+
+        /* FAB */
+        .fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: var(--primary-gold); color: #111; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); cursor: pointer; z-index: 100; }
+
+        /* Modal & Toast */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; justify-content: center; align-items: center; padding: 15px; }
+        .modal.active { display: flex; }
+        .modal-content { max-width: 400px; width: 100%; max-height: 90vh; overflow-y: auto; text-align: center; }
+        
+        #toast { visibility: hidden; min-width: 250px; background-color: var(--success); color: #fff; text-align: center; border-radius: 12px; padding: 15px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); }
+        #toast.show { visibility: visible; animation: fadein 0.4s, fadeout 0.4s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+        .log-item { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 0.85rem; text-align: left; }
+        .log-time { color: var(--primary-gold); font-weight: bold; margin-right: 8px; }
+        .profile-btn { padding: 25px; font-size: 1.2rem; margin-bottom: 15px; background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--primary-gold); }
+    </style>
 </head>
 <body>
 
-    <div id="toast" style="z-index: 1050;">Ação realizada com sucesso!</div>
+    <div id="toast"></div>
 
     <div id="login-screen" class="screen glass active">
-        <h1>Login da Família</h1>
+        <h1>Login Família</h1>
         <input type="email" id="login-email" placeholder="E-mail da Família">
         <input type="password" id="login-pass" placeholder="Senha da Família">
-        <button onclick="attemptLogin()">Entrar na Conta Família</button>
-        <span class="link-text" onclick="showScreen('forgot-screen')" style="margin-top: 5px;">Esqueci a senha da Família</span>
-        <span class="link-text" onclick="showScreen('register-screen')">Criar Conta Família</span>
+        <button onclick="attemptLogin()">Entrar</button>
+        <span class="link-text" onclick="showScreen('register-screen')">Cadastrar Nova Família</span>
+        <span class="link-text" onclick="showScreen('forgot-screen')">Esqueci a senha</span>
     </div>
 
     <div id="register-screen" class="screen glass">
         <h1>Nova Família</h1>
-        <p style="font-size: 0.8rem; text-align: center; margin-bottom: 10px; opacity: 0.8;">Use um e-mail verdadeiro para recuperar a senha da família depois.</p>
-        <input type="email" id="reg-email" placeholder="E-mail principal (Verdadeiro)">
-        <input type="password" id="reg-pass" placeholder="Crie uma senha (mín. 6 dígitos)">
-        <hr style="border-color: var(--glass-border); margin: 15px 0;">
-        <input type="text" id="reg-cpf-1" placeholder="CPF do Titular (Apenas números)">
-        <input type="text" id="reg-cpf-2" placeholder="CPF do Cônjuge (Apenas números)">
-        <button onclick="handleRegister()" style="margin-top: 15px;">Cadastrar Família</button>
-        <span class="link-text" onclick="showScreen('login-screen')">Voltar para Login</span>
+        <input type="email" id="reg-email" placeholder="E-mail principal">
+        <input type="password" id="reg-pass" placeholder="Senha (mín. 6 caracteres)">
+        <input type="text" id="reg-cpf-1" placeholder="CPF do Marido">
+        <input type="text" id="reg-cpf-2" placeholder="CPF da Esposa">
+        <button onclick="handleRegister()">Criar Conta</button>
+        <span class="link-text" onclick="showScreen('login-screen')">Voltar ao Login</span>
     </div>
 
     <div id="forgot-screen" class="screen glass">
         <h1>Recuperar Conta</h1>
-        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">Enviaremos um link de redefinição para o e-mail da Família.</p>
-        <input type="email" id="forgot-email" placeholder="Digite o E-mail da Família">
-        <button onclick="handleForgotPassword()">Enviar Link de Recuperação</button>
-        <span class="link-text" onclick="showScreen('login-screen')">Voltar para Login</span>
+        <input type="email" id="forgot-email" placeholder="E-mail cadastrado">
+        <button onclick="handleForgotPassword()">Enviar Link</button>
+        <span class="link-text" onclick="showScreen('login-screen')">Voltar</span>
     </div>
 
-    <div id="profile-screen" class="screen glass" style="text-align: center;">
-        <h1>Quem está acessando?</h1>
-        <div style="display: flex; gap: 15px; margin-top: 20px;">
-            <button onclick="selectProfile('marido')" class="profile-btn"><span style="font-size: 2.5rem;">👨</span><br>Marido</button>
-            <button onclick="selectProfile('esposa')" class="profile-btn"><span style="font-size: 2.5rem;">👩</span><br>Esposa</button>
-        </div>
-        <span class="link-text" onclick="openProfileRecovery()" style="margin-top: 25px; font-weight: bold;">Esqueci a senha do meu perfil</span>
-        <span class="link-text" onclick="logoutFamily()" style="color: var(--danger); margin-top: 15px;">Sair da Conta Família</span>
+    <div id="profile-screen" class="screen glass">
+        <h1>Quem está usando?</h1>
+        <button class="profile-btn" onclick="selectProfile('marido')">🧔 Marido</button>
+        <button class="profile-btn" onclick="selectProfile('esposa')">👩 Esposa</button>
+        <button class="btn-outline" onclick="logoutFamily()">Sair da Conta Família</button>
     </div>
 
     <div id="profile-login-screen" class="screen glass">
         <h1 id="profile-login-title">Área Privada</h1>
-        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">Digite a senha do seu perfil para acessar suas finanças.</p>
-        <input type="password" id="profile-pass" placeholder="Senha do Perfil">
-        <button onclick="loginProfile()">Entrar no Meu Perfil</button>
-        <span class="link-text" onclick="showScreen('profile-screen')">Voltar para Perfis</span>
+        <input type="password" id="profile-pass" placeholder="Senha do perfil">
+        <button onclick="loginProfile()">Acessar</button>
+        <span class="link-text" onclick="openProfileRecovery()">Esqueci a senha do perfil</span>
+        <span class="link-text" onclick="showScreen('profile-screen')">Voltar</span>
     </div>
 
     <div id="profile-setup-screen" class="screen glass">
-        <h1 id="profile-setup-title">Criar Senha Privada</h1>
-        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">Crie uma senha exclusiva e uma frase para caso esqueça.</p>
-        <input type="password" id="setup-profile-pass" placeholder="Nova Senha do Perfil">
-        <input type="text" id="setup-profile-phrase" placeholder="Pergunta/Frase de Segurança (Ex: Nome da mãe)">
+        <h1 id="profile-setup-title">Criar Senha de Perfil</h1>
+        <input type="password" id="setup-profile-pass" placeholder="Defina sua senha">
+        <input type="text" id="setup-profile-phrase" placeholder="Frase de segurança">
         <button onclick="setupProfile()">Salvar e Entrar</button>
-        <span class="link-text" onclick="showScreen('profile-screen')">Voltar para Perfis</span>
     </div>
 
     <div id="profile-forgot-screen" class="screen glass">
         <h1>Recuperar Perfil</h1>
-        <p style="font-size: 0.85rem; text-align: center; margin-bottom: 10px;">De qual perfil você esqueceu a senha?</p>
-        <select id="forgot-profile-role">
-            <option value="marido">Perfil do Marido</option>
-            <option value="esposa">Perfil da Esposa</option>
-        </select>
-        
-        <input type="password" id="forgot-profile-new-pass" placeholder="Crie uma Nova Senha do Perfil">
-        
-        <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; margin-top: 15px;">
-            <p style="font-size: 0.8rem; color: var(--primary-gold); margin-bottom: 5px;">Opção 1: Usar Frase de Segurança</p>
-            <input type="text" id="forgot-profile-phrase" placeholder="Sua Frase de Segurança">
-            <button onclick="recoverProfile()">Redefinir com Frase</button>
-        </div>
-
-        <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; margin-top: 15px;">
-            <p style="font-size: 0.8rem; color: var(--danger); margin-bottom: 5px;">Opção 2: Esqueceu a frase? Use a senha da Família</p>
-            <input type="password" id="forgot-profile-family-pass" placeholder="Senha Principal da Família">
-            <button onclick="recoverProfileWithFamilyPass()" class="btn-outline" style="color: var(--danger); border-color: var(--danger);">Forçar Redefinição</button>
-        </div>
-
-        <span class="link-text" onclick="showScreen('profile-screen')">Voltar para Perfis</span>
+        <select id="forgot-profile-role"><option value="marido">Marido</option><option value="esposa">Esposa</option></select>
+        <input type="text" id="forgot-profile-phrase" placeholder="Sua frase de segurança">
+        <button onclick="recoverProfile()">Redefinir com Frase</button>
+        <hr style="opacity: 0.2; margin: 10px 0;">
+        <input type="password" id="forgot-profile-family-pass" placeholder="Senha da Família">
+        <input type="password" id="forgot-profile-new-pass" placeholder="Nova Senha Perfil">
+        <button onclick="recoverProfileWithFamilyPass()">Redefinir com Família</button>
+        <span class="link-text" onclick="showScreen('profile-screen')">Cancelar</span>
     </div>
 
     <div id="main-screen" class="screen" style="max-width: 800px;">
-        <header class="glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 5px;">
-            <h3 style="margin:0;">Olá, <span id="display-user" style="color:white; text-transform: capitalize;"></span></h3>
-            <div style="display: flex; gap: 5px;">
-                <button id="btn-install" class="btn-outline" style="display: none; width: auto; padding: 5px 10px;" onclick="installApp()">⬇️ App</button>
-                <button onclick="openNotifications()" class="btn-outline" style="width: auto; padding: 5px 10px;">🔔 Histórico</button>
-                <button onclick="logoutProfile()" class="btn-outline" style="width: auto; padding: 5px 10px; color: var(--danger); border-color: var(--danger);">Sair</button>
+        <header class="glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin:0;">Olá, <span id="display-user"></span></h3>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="openNotifications()" class="btn-outline" style="width: 40px; padding: 5px;">🔔</button>
+                <button onclick="logoutProfile()" class="btn-outline" style="width: auto; padding: 5px 15px;">Sair</button>
             </div>
         </header>
 
         <div class="tabs glass" style="padding: 5px;">
-            <div class="tab active" id="tab-home" onclick="setTab('home')">Casa</div>
-            <div class="tab" id="tab-personal" onclick="setTab('personal')">Pessoal</div>
+            <div class="tab active" id="tab-home" onclick="setTab('home')">🏠 Casa</div>
+            <div class="tab" id="tab-personal" onclick="setTab('personal')">👤 Pessoal</div>
         </div>
 
         <div class="tools-row">
             <button class="tool-btn glass" onclick="openAlarmModal()">⏰ Lembrete</button>
             <button class="tool-btn glass" onclick="showFeiraScreen()">🛒 Feira</button>
+            <button class="tool-btn glass" onclick="openPetLog()">🐾 Pets</button>
+            <button class="tool-btn glass" onclick="installApp()" id="btn-install" style="display:none;">📲 Instalar</button>
         </div>
 
         <div class="glass" style="margin-bottom: 15px;">
             <div class="calendar-header">
                 <button onclick="changeMonth(-1)">❮</button>
-                <h4 id="cal-month-year" style="margin:0; font-size: 1.1rem;">Mês Ano</h4>
+                <h4 id="cal-month-year" style="margin:0;">Mês Ano</h4>
                 <button onclick="changeMonth(1)">❯</button>
+            </div>
+            <div class="calendar-grid">
+                <div class="day-name">D</div><div class="day-name">S</div><div class="day-name">T</div><div class="day-name">Q</div><div class="day-name">Q</div><div class="day-name">S</div><div class="day-name">S</div>
             </div>
             <div id="calendar-days" class="calendar-grid"></div>
         </div>
 
-        <p class="section-title">Resumo do Mês</p>
         <div class="summary-grid">
             <div class="card glass" id="card-marido"><span id="label-marido">Total Marido</span><strong id="stat-m">R$ 0</strong></div>
             <div class="card glass" id="card-esposa">Total Esposa<strong id="stat-e">R$ 0</strong></div>
             <div id="card-balance" class="card glass" style="grid-column: span 2;">
-                Balanço do Mês: <strong id="stat-balance">R$ 0</strong>
+                Situação: <strong id="stat-balance">R$ 0</strong>
             </div>
         </div>
 
-        <div class="glass chart-container" style="text-align: center;">
+        <div class="glass" style="display: flex; flex-direction: column; align-items: center; margin-bottom: 15px;">
             <canvas id="expense-chart" width="160" height="160"></canvas>
-            <div id="chart-legend" style="display:flex; flex-wrap:wrap; justify-content:center; gap:5px; margin-top:10px;"></div>
+            <div id="chart-legend" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px;"></div>
         </div>
 
-        <div class="glass" id="list-container" style="margin-top:15px;"></div>
-        <div class="fab" onclick="openAddModal()" id="main-fab">+</div>
+        <div class="glass" id="list-container"></div>
+        <div class="fab" onclick="openAddModal()">+</div>
     </div>
 
-    <div id="feira-screen" class="screen" style="max-width: 800px;"><div class="feira-header glass"><button class="btn-outline" onclick="closeFeiraScreen()" style="width: auto; padding: 5px 15px;">❮ Voltar</button><h3 style="margin: 0;">Carrinho de Feira</h3><button class="btn-outline" onclick="clearFeira()" style="width: auto; padding: 5px 15px; color: var(--danger); border-color: var(--danger);">Limpar</button></div><div class="glass"><div class="feira-total-display">R$ <span id="feira-total-val">0.00</span></div></div><div class="glass" id="feira-list-container" style="margin-top: 15px;"></div><div class="fab" onclick="openFeiraItemModal()" style="background: var(--success); color: white;">+</div></div>
-    
-    <div id="modal-notifications" class="modal" style="z-index: 999;"><div class="glass modal-content" style="max-height: 80vh; display: flex; flex-direction: column;"><h3 style="color: var(--primary-gold);">Histórico da Casa 🔔</h3><div id="notifications-list" style="overflow-y: auto; text-align: left; margin: 15px 0; font-size: 0.85rem; flex: 1;"></div><button onclick="closeModals()" class="btn-outline">Fechar</button></div></div>
-    
-    <div id="modal-approval-popup" class="modal" style="z-index: 1005;">
+    <div id="feira-screen" class="screen" style="max-width: 800px;">
+        <div class="glass" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <button class="btn-outline" onclick="closeFeiraScreen()" style="width: auto; padding: 5px 15px;">❮ Voltar</button>
+            <h3 style="margin: 0;">Carrinho 🛒</h3>
+            <button onclick="clearFeira()" style="width: auto; background: var(--danger); color: white; padding: 5px 15px;">Limpar</button>
+        </div>
+        <div class="glass" style="text-align: center; margin-bottom: 15px;">
+            <h2 style="color: var(--success);">R$ <span id="feira-total-val">0.00</span></h2>
+        </div>
+        <div id="feira-list-container"></div>
+        <div class="fab" onclick="openFeiraItemModal()" style="background: var(--success); color: white;">+</div>
+    </div>
+
+    <div id="modal-confirm" class="modal">
         <div class="glass modal-content">
-            <h3 style="color: var(--primary-gold);">Aprovação Pendente 🔔</h3>
-            <div id="approval-popup-content" style="margin: 15px 0; font-size: 0.95rem; text-align: left; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px;">
-                </div>
-            <div class="flex-row">
-                <button id="btn-reject-popup" class="btn-outline" style="color: var(--danger); border-color: var(--danger);">Recusar</button>
-                <button id="btn-approve-popup" style="background: var(--success); color: white;">Aprovar</button>
+            <h3 id="confirm-title" style="color: var(--danger);">Confirmar</h3>
+            <p id="confirm-msg" style="margin: 20px 0;"></p>
+            <div style="display:flex; gap:10px;">
+                <button onclick="closeModals()" class="btn-outline">Não</button>
+                <button id="btn-confirm-action" style="background: var(--danger); color: white;">Sim</button>
             </div>
         </div>
     </div>
 
-    <div id="modal-feira-item" class="modal" style="z-index: 999;"><div class="glass modal-content"><h3 id="feira-item-title">Adicionar Produto</h3><input type="hidden" id="feira-edit-id"><input type="text" id="feira-item-name" placeholder="Nome do Produto"><input type="number" id="feira-item-val" placeholder="Valor Unitário (R$)"><input type="number" id="feira-item-qtd" placeholder="Quantidade" value="1"><div class="flex-row" style="margin-top: 20px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleSaveFeiraItem()">Confirmar</button></div></div></div>
-    
-    <div id="modal-alarm" class="modal" style="z-index: 999;"><div class="glass modal-content"><h3>Agendar Lembrete ⏰</h3><input type="text" id="alarm-desc" placeholder="Qual é o lembrete?"><input type="date" id="alarm-date"><input type="time" id="alarm-time"><div class="flex-row" style="margin-top: 15px;"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button onclick="handleSaveAlarm()">Agendar</button></div></div></div>
-
-    <div id="modal-add" class="modal" style="z-index: 999;">
-        <div class="glass modal-content" style="text-align: left;">
-            <h3 id="form-title" style="text-align:center;">Nova Despesa</h3>
-            <input type="hidden" id="edit-id" value="">
-            <input type="text" id="exp-desc" placeholder="Descrição (Ex: Luz, Mercado)">
-            <input type="number" id="exp-val" placeholder="Valor Total (R$)">
-            <div style="display:flex; gap:10px;">
+    <div id="modal-add" class="modal">
+        <div class="glass modal-content">
+            <h3 id="form-title">Nova Despesa</h3>
+            <input type="hidden" id="edit-id">
+            <input type="text" id="exp-desc" placeholder="Descrição">
+            <input type="number" id="exp-val" placeholder="Valor Total">
+            <div style="display:flex; gap:5px;">
                 <select id="exp-cat"></select>
-                <button onclick="openCategoryModal()" style="width: auto; font-size: 1.5rem; padding: 0 15px;">+</button>
+                <button onclick="openCategoryModal()" style="width: 50px;">+</button>
             </div>
-            <label style="font-size: 0.8rem; color: var(--primary-gold); display: block; margin-top: 10px;">Data da Compra</label>
             <input type="date" id="exp-date">
-            <label style="font-size: 0.8rem; color: var(--info); display: block; margin-top: 10px;">Agendar Alarme para Pagar? (Opcional)</label>
-            <div style="display: flex; gap: 10px;">
-                <input type="date" id="exp-alarm-date" style="flex: 2;">
-                <input type="time" id="exp-alarm-time" style="flex: 1;">
-            </div>
-            <div id="parcelas-container">
-                <label style="font-size: 0.8rem; color: var(--primary-gold); display: block; margin-top: 10px;">Parcelas</label>
-                <select id="exp-installments">
-                    <option value="1">À vista (1x)</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="12">12x</option>
-                </select>
-            </div>
+            <select id="exp-installments">
+                <option value="1">1x (À vista)</option>
+                <option value="2">2x</option><option value="3">3x</option><option value="6">6x</option><option value="12">12x</option>
+            </select>
             <div id="split-options">
-                <label style="font-size: 0.8rem; color: var(--primary-gold); display: block; margin-top: 10px;">Divisão</label>
                 <select id="exp-split"></select>
             </div>
-            <div class="flex-row" style="margin-top: 20px;">
-                <button onclick="closeModals()" class="btn-outline">Cancelar</button>
+            <div style="display:flex; gap:5px;">
+                <input type="date" id="exp-alarm-date">
+                <input type="time" id="exp-alarm-time">
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button onclick="closeModals()" class="btn-outline">Sair</button>
                 <button onclick="handleAddEntry()">Salvar</button>
             </div>
         </div>
     </div>
 
-    <div id="modal-category" class="modal" style="z-index: 1000;"><div class="glass modal-content"><h3>Nova Categoria</h3><input type="text" id="new-cat-name" placeholder="Nome da Categoria (Ex: Pet)"><div class="flex-row" style="margin-top: 20px;"><button onclick="closeCategoryModal()" class="btn-outline">Cancelar</button><button onclick="confirmAddCategory()">Criar</button></div></div></div>
-    
-    <div id="modal-confirm" class="modal" style="z-index: 1010;"><div class="glass modal-content"><h3 id="confirm-title" style="color: var(--danger);">Atenção</h3><p id="confirm-msg" style="margin: 20px 0;">Você tem certeza?</p><div class="flex-row"><button onclick="closeModals()" class="btn-outline">Cancelar</button><button id="btn-confirm-action" style="background: var(--danger); color: white;">Sim, confirmar</button></div></div></div>
+    <div id="modal-pet-log" class="modal">
+        <div class="glass modal-content">
+            <h3 style="color: var(--primary-gold);">Histórico dos Pets 🐾</h3>
+            <div style="display:flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="pet-log-desc" placeholder="Ex: Vacina, Banho...">
+                <button onclick="addPetLog()" style="width: 50px; font-size: 1.5rem;">+</button>
+            </div>
+            <div id="pet-log-list" style="max-height: 250px; overflow-y: auto; text-align: left;"></div>
+            <div style="display:flex; gap:10px; margin-top: 15px;">
+                <button onclick="closeModals()" class="btn-outline">Fechar</button>
+                <button id="btn-clear-pet-log" onclick="clearPetLog()" style="background: var(--danger); color: white; display: none;">🗑️ Apagar Histórico</button>
+            </div>
+        </div>
+    </div>
 
-    <script>
-        const versaoAtual = new Date().getTime();
-        const script = document.createElement('script');
-        script.type = 'module';
-        script.src = 'script.js?v=' + versaoAtual;
-        script.onerror = function() {
-            const t = document.getElementById('toast');
-            t.innerText = "Erro ao carregar o sistema. Verifique a internet.";
-            t.style.backgroundColor = 'var(--danger)';
-            t.className = "show";
-        };
-        document.body.appendChild(script);
-    </script>
+    <div id="modal-alarm" class="modal">
+        <div class="glass modal-content">
+            <h3>Agendar Lembrete ⏰</h3>
+            <input type="text" id="alarm-desc" placeholder="O que lembrar?">
+            <input type="date" id="alarm-date">
+            <input type="time" id="alarm-time">
+            <button onclick="handleSaveAlarm()">Agendar</button>
+            <button onclick="closeModals()" class="btn-outline">Sair</button>
+        </div>
+    </div>
+
+    <div id="modal-feira-item" class="modal">
+        <div class="glass modal-content">
+            <h3>Item Carrinho</h3>
+            <input type="hidden" id="feira-edit-id">
+            <input type="text" id="feira-item-name" placeholder="Produto">
+            <input type="number" id="feira-item-val" placeholder="Valor Unitário">
+            <input type="number" id="feira-item-qtd" value="1" placeholder="Qtd">
+            <button onclick="handleSaveFeiraItem()">Adicionar</button>
+            <button onclick="closeModals()" class="btn-outline">Cancelar</button>
+        </div>
+    </div>
+
+    <div id="modal-notifications" class="modal">
+        <div class="glass modal-content">
+            <h3>Atividade</h3>
+            <div id="notifications-list"></div>
+            <button onclick="closeModals()">Fechar</button>
+        </div>
+    </div>
+
+    <div id="modal-approval-popup" class="modal">
+        <div class="glass modal-content">
+            <h3>Nova Despesa Casa</h3>
+            <div id="approval-popup-content"></div>
+            <div style="display:flex; gap:10px;">
+                <button id="btn-reject-popup" style="background: var(--danger); color: white;">Recusar</button>
+                <button id="btn-approve-popup" style="background: var(--success); color: white;">Aprovar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-category" class="modal">
+        <div class="glass modal-content">
+            <h3>Nova Categoria</h3>
+            <input type="text" id="new-cat-name" placeholder="Nome">
+            <button onclick="confirmAddCategory()">Adicionar</button>
+            <button onclick="closeCategoryModal()" class="btn-outline">Voltar</button>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+
 </body>
 </html>
