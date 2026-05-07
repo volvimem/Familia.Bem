@@ -238,11 +238,17 @@
                 <button onclick="openCategoryModal()" style="width: 50px;">+</button>
             </div>
             <input type="date" id="exp-date">
-            <select id="exp-installments">
-                <option value="1">1x (À vista)</option>
-                <option value="2">2x</option><option value="3">3x</option><option value="6">6x</option><option value="12">12x</option>
-            </select>
+            
+            <div id="parcelas-container">
+                <label style="font-size: 0.75rem; color: var(--primary-gold); text-align: left; display: block; margin-top: 5px;">Parcelas</label>
+                <select id="exp-installments">
+                    <option value="1">1x (À vista)</option>
+                    <option value="2">2x</option><option value="3">3x</option><option value="6">6x</option><option value="12">12x</option>
+                </select>
+            </div>
+            
             <div id="split-options">
+                <label style="font-size: 0.75rem; color: var(--primary-gold); text-align: left; display: block; margin-top: 5px;">Como dividir?</label>
                 <select id="exp-split"></select>
             </div>
             <div style="display:flex; gap:5px;">
