@@ -442,12 +442,54 @@ window.handleAddEntry = function() {
         if (editId) {
             const idx = db.entries.findIndex(e => e.id == editId);
             if(idx > -1) { 
-                const splitChanged = db.entries[idx].split !== split; const valChanged = db.entries[idx].val !== valTotal;
-                db.entries[idx].desc = desc; db.entries[idx].val = valTotal; db.entries[idx].category = cat; db.entries[idx].date = date; db.entries[idx].split = split; 
+                const oldEntry = db.entries[idx];
+                const oldDate = oldEntry.date;
+                const oldDesc = oldEntry.desc; // Guarda a descrição original para verificar se era parcela
+                
+                const splitChanged = oldEntry.split !== split; 
+                const valChanged = oldEntry.val !== valTotal;
+                
+                db.entries[idx].desc = desc; 
+                db.entries[idx].val = valTotal; 
+                db.entries[idx].category = cat; 
+                db.entries[idx].date = date; 
+                db.entries[idx].split = split; 
+                
                 if ((splitChanged || valChanged) && db.entries[idx].type === 'home') {
                     db.entries[idx].status = 'pending'; db.entries[idx].owner = currentUser; db.entries[idx].isEdit = true;
                     const msg = `🏠 ${currentUser.toUpperCase()} alterou: ${desc} (Aguardando Aprovação)`; sendNotification("Despesa Pendente", msg); logNotification(msg);
                 } else { logNotification(`✏️ ${currentUser.toUpperCase()} atualizou: "${desc}".`); }
+
+                // --- ATUALIZAÇÃO AUTOMÁTICA DAS PARCELAS SEGUINTES ---
+                const oldMatch = oldDesc.match(/^(.*) \((\d+)\/(\d+)\)$/); // Verifica padrão "(1/3)"
+                if (oldMatch) {
+                    const oldBaseDesc = oldMatch[1];
+                    const currentParcel = parseInt(oldMatch[2]);
+                    const totalParcels = parseInt(oldMatch[3]);
+                    
+                    const newMatch = desc.match(/^(.*) \((\d+)\/(\d+)\)$/);
+                    const newBaseDesc = newMatch ? newMatch[1] : desc.replace(/\s\(\d+\/\d+\)$/, ''); // Pega o nome sem a numeração da parcela
+                    
+                    let [newY, newM, newD] = date.split('-').map(Number);
+                    
+                    // Se o usuário mudou a data ou o nome, atualiza as próximas parcelas
+                    if (oldDate !== date || oldBaseDesc !== newBaseDesc) {
+                        for (let p = currentParcel + 1; p <= totalParcels; p++) {
+                            const nextOldDesc = `${oldBaseDesc} (${p}/${totalParcels})`;
+                            const nextEntry = db.entries.find(e => e.desc === nextOldDesc && e.owner === oldEntry.owner && e.id !== oldEntry.id);
+                            
+                            if (nextEntry) {
+                                // Atualiza o nome da parcela seguinte
+                                nextEntry.desc = `${newBaseDesc} (${p}/${totalParcels})`;
+                                
+                                // Calcula a nova data mantendo o espaçamento em meses a partir da NOVA data
+                                const monthsToAdd = p - currentParcel;
+                                const nextDateObj = new Date(newY, newM - 1 + monthsToAdd, newD);
+                                nextEntry.date = getIsoDate(nextDateObj);
+                            }
+                        }
+                    }
+                }
             }
         } else {
             const valParcela = valTotal / parcels; let [y, m, d] = date.split('-').map(Number);
