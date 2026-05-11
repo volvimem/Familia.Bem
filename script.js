@@ -241,7 +241,7 @@ window.deleteSingleNotification = function(index) {
     if(currentUser !== 'marido') return;
     db.notificationsLog.splice(index, 1);
     saveDB();
-    openNotifications(); // Atualiza a lista na hora
+    openNotifications(); 
 };
 
 window.clearNotifications = function() {
@@ -269,7 +269,6 @@ function checkForPendingApprovals() {
     }
 }
 
-// --- ATUALIZAÇÃO 1: Garantir que os botões voltem ao padrão nos popups originais ---
 window.showApprovalPopup = function(entry) {
     let splitText = "";
     if (entry.split === 50) splitText = "Dividido igualmente (50/50)";
@@ -307,12 +306,24 @@ window.showDeleteApprovalPopup = function(entry) {
     document.getElementById('modal-approval-popup').classList.add('active');
 };
 
-// --- ATUALIZAÇÃO 2: Nova lógica inteligente de exclusão para Despesas ---
+// --- MARCAR COMO PAGO ---
+window.payEntry = function(id) { 
+    window.showConfirmModal("Confirmar Pagamento", "Marcar esta despesa como PAGA? Ela sairá da lista de lançamentos pendentes.", () => { 
+        const idx = db.entries.findIndex(e => e.id === id); 
+        if(idx > -1) { 
+            db.entries[idx].paid = true; 
+            saveDB(); 
+            renderAll(); 
+            showToast("💲 Pagamento confirmado!"); 
+        } 
+    }); 
+};
+
+// --- NOVA LÓGICA DE EXCLUSÃO ---
 window.deleteEntry = function(id) { 
     const e = db.entries.find(x => x.id === id); 
     if(!e) return;
     
-    // Verifica se é uma despesa parcelada procurando o padrão "(X/Y)" ex: (1/12)
     const match = e.desc.match(/^(.*) \(\d+\/\d+\)$/);
     
     if (match) {
@@ -328,22 +339,18 @@ window.deleteEntry = function(id) {
         const btnReject = document.getElementById('btn-reject-popup');
         const btnApprove = document.getElementById('btn-approve-popup');
         
-        // Alteramos dinamicamente os textos dos botões
         btnReject.innerText = "Apenas Esta";
         btnApprove.innerText = "Todas as Parcelas";
         
-        // Ação 1: Apaga apenas o ID selecionado
         btnReject.onclick = () => { 
             db.entries = db.entries.filter(x => x.id !== id); 
             finishDelete(); 
         };
         
-        // Ação 2: Apaga todas que tiverem a mesma descrição base, valor, categoria e dono
         btnApprove.onclick = () => { 
             db.entries = db.entries.filter(x => {
                 if (x.id === id) return false;
                 const m = x.desc.match(/^(.*) \(\d+\/\d+\)$/);
-                // Se tudo bater perfeitamente, ela pertence ao mesmo "pacote" e será excluída
                 return !(m && m[1] === baseDesc && x.val === e.val && x.category === e.category && x.owner === e.owner);
             }); 
             finishDelete(); 
@@ -351,31 +358,17 @@ window.deleteEntry = function(id) {
 
         const finishDelete = () => {
             saveDB(); renderAll(); showToast("🗑 Removido com sucesso!"); window.closeModals();
-            // Retorna os botões ao texto padrão
             btnReject.innerText = "Recusar"; 
             btnApprove.innerText = "Aprovar";
         };
 
         document.getElementById('modal-approval-popup').classList.add('active');
     } else {
-        // Exclusão normal se for despesa à vista (não caiu no Match)
         window.showConfirmModal("Excluir", "Deseja apagar este registro permanentemente?", () => { 
             db.entries = db.entries.filter(x => x.id !== id); 
             saveDB(); renderAll(); showToast("🗑 Removido!"); 
         }); 
     }
-};
-
-window.showDeleteApprovalPopup = function(entry) {
-    document.getElementById('approval-popup-content').innerHTML = `
-        <h3 style="color:var(--danger);">⚠️ Pedido de Exclusão</h3>
-        <span style="color:var(--text-light); font-size:1.1rem;"><strong>${entry.desc}</strong></span><br>
-        <span style="opacity: 0.8;">Valor: R$ ${window.formatCurrency(entry.val)}</span><br><br>
-        <strong style="color: var(--primary-gold);">O parceiro deseja excluir permanentemente esta despesa. Você autoriza?</strong>
-    `;
-    document.getElementById('btn-approve-popup').onclick = () => { window.approvePetDelete(entry.id); window.closeModals(); };
-    document.getElementById('btn-reject-popup').onclick = () => { window.rejectPetDelete(entry.id); window.closeModals(); };
-    document.getElementById('modal-approval-popup').classList.add('active');
 };
 
 // --- NAVEGAÇÃO E CRUD ---
@@ -488,7 +481,6 @@ function renderAll() {
     renderCalendar();
     const selY = currentDate.getFullYear(); const selM = currentDate.getMonth();
     
-    // Todas as despesas base do mês atual (independente de ser casa ou pessoal)
     const baseMonthEntries = db.entries.filter(e => { const [y, m] = e.date.split('-'); return parseInt(y) === selY && (parseInt(m)-1) === selM && !e.isAlarm; });
 
     let viewMonthEntries = []; let totalM = 0; let totalE = 0; let debtM = 0; let debtE = 0; let personalTotal = 0;
@@ -516,18 +508,17 @@ function renderAll() {
 
     drawChart(viewMonthEntries);
     
-    // MUDANÇA: Lançamentos do MÊS (e não apenas do dia)
     const monthPrefix = `${selY}-${String(selM+1).padStart(2,'0')}`;
     const container = document.getElementById('list-container'); 
     container.innerHTML = '<h4 style="text-align:left; font-size:1rem; color:white; margin-bottom: 10px;">Lançamentos do Mês</h4>';
     
     let viewListEntries = db.entries.filter(e => { 
         if(!e.date.startsWith(monthPrefix)) return false; 
+        if(e.paid) return false; 
         if(currentView === 'home') return e.type === 'home' || e.isAlarm; 
         return e.type === 'home' || (e.type === 'personal' && e.owner === currentUser) || (e.isAlarm && e.owner === currentUser); 
     });
 
-    // Ordena do mais recente para o mais antigo
     viewListEntries.sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id);
 
     if(viewListEntries.length === 0) container.innerHTML += '<p style="text-align:center; opacity:0.5;">Nenhum registro no mês.</p>';
@@ -545,9 +536,11 @@ function renderAll() {
 
             if (e.type === 'home' && e.status === 'pending') { statusTag = `<br><span style="font-size: 0.7rem; background: var(--danger); padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">⏳ Pendente (${splitTextList})</span>`; if (e.owner !== currentUser) { actionHtml = `<button onclick="approveEntry(${e.id})" style="color:var(--success)">✅</button><button onclick="rejectEntry(${e.id})" style="color:var(--danger)">❌</button>`; } else { actionHtml = `<button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; } } 
             else if (e.type === 'home' && e.status === 'rejected') { statusTag = `<br><span style="font-size: 0.7rem; background: #555; padding: 3px 6px; border-radius: 8px; display: inline-block; margin-top: 5px;">❌ Recusado (${splitTextList})</span>`; actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; } 
-            else { if(e.type === 'home') statusTag = `<br><span style="font-size: 0.7rem; color: var(--success); display: inline-block; margin-top: 4px;">✅ Aprovado (${splitTextList})</span>`; actionHtml = `<button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; }
+            else { 
+                if(e.type === 'home') statusTag = `<br><span style="font-size: 0.7rem; color: var(--success); display: inline-block; margin-top: 4px;">✅ Aprovado (${splitTextList})</span>`; 
+                actionHtml = `<button onclick="payEntry(${e.id})" style="color:var(--success); font-size: 1.1rem;" title="Marcar como Pago">💲</button><button onclick="editEntry(${e.id})" style="color:var(--info)">✏️</button><button onclick="deleteEntry(${e.id})" style="color:var(--danger)">🗑</button>`; 
+            }
             
-            // Adicionado a data da compra no item para ficar claro, já que agora é do mês todo
             const displayDate = e.date.split('-').reverse().join('/');
             
             container.innerHTML += `<div class="expense-item" style="${e.type === 'personal' ? 'border-color: var(--info);' : ''}"><div class="expense-info"><strong>${icon} ${e.desc}</strong><small>R$ ${window.formatCurrency(e.val)} - ${e.category} - ${displayDate} ${statusTag}</small></div><div class="action-btns">${actionHtml}</div></div>`; 
@@ -575,7 +568,6 @@ function drawChart(data) {
     } 
     
     let start = 0; let i = 0; 
-    // Ordena as categorias do maior gasto pro menor
     const sortedCats = Object.entries(cats).sort((a, b) => b[1] - a[1]);
 
     for (let [c, val] of sortedCats) { 
@@ -596,10 +588,8 @@ function drawChart(data) {
         start += slice; i++; 
     } 
 
-    // Cria o "buraco" da Rosca
     ctx.beginPath(); ctx.arc(centerX, centerY, innerRadius, 0, 2 * Math.PI); ctx.fillStyle = '#24243e'; ctx.fill();
     
-    // Texto do Total no meio
     ctx.fillStyle = '#f5f5f5'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('TOTAL', centerX, centerY - 8);
     ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#d4af37';
