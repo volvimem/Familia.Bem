@@ -269,6 +269,7 @@ function checkForPendingApprovals() {
     }
 }
 
+// --- ATUALIZAÇÃO 1: Garantir que os botões voltem ao padrão nos popups originais ---
 window.showApprovalPopup = function(entry) {
     let splitText = "";
     if (entry.split === 50) splitText = "Dividido igualmente (50/50)";
@@ -283,9 +284,86 @@ window.showApprovalPopup = function(entry) {
         <strong style="color: var(--primary-gold);">Divisão Solicitada:</strong><br>
         <span style="color: var(--info);">${splitText}</span>
     `;
+    
+    document.getElementById('btn-approve-popup').innerText = "Aprovar"; 
+    document.getElementById('btn-reject-popup').innerText = "Recusar";  
     document.getElementById('btn-approve-popup').onclick = () => { window.approveEntry(entry.id); window.closeModals(); };
     document.getElementById('btn-reject-popup').onclick = () => { window.rejectEntry(entry.id); window.closeModals(); };
     document.getElementById('modal-approval-popup').classList.add('active');
+};
+
+window.showDeleteApprovalPopup = function(entry) {
+    document.getElementById('approval-popup-content').innerHTML = `
+        <h3 style="color:var(--danger);">⚠️ Pedido de Exclusão</h3>
+        <span style="color:var(--text-light); font-size:1.1rem;"><strong>${entry.desc}</strong></span><br>
+        <span style="opacity: 0.8;">Valor: R$ ${window.formatCurrency(entry.val)}</span><br><br>
+        <strong style="color: var(--primary-gold);">O parceiro deseja excluir permanentemente esta despesa. Você autoriza?</strong>
+    `;
+    
+    document.getElementById('btn-approve-popup').innerText = "Aprovar"; 
+    document.getElementById('btn-reject-popup').innerText = "Recusar";  
+    document.getElementById('btn-approve-popup').onclick = () => { window.approvePetDelete(entry.id); window.closeModals(); };
+    document.getElementById('btn-reject-popup').onclick = () => { window.rejectPetDelete(entry.id); window.closeModals(); };
+    document.getElementById('modal-approval-popup').classList.add('active');
+};
+
+// --- ATUALIZAÇÃO 2: Nova lógica inteligente de exclusão para Despesas ---
+window.deleteEntry = function(id) { 
+    const e = db.entries.find(x => x.id === id); 
+    if(!e) return;
+    
+    // Verifica se é uma despesa parcelada procurando o padrão "(X/Y)" ex: (1/12)
+    const match = e.desc.match(/^(.*) \(\d+\/\d+\)$/);
+    
+    if (match) {
+        const baseDesc = match[1];
+        document.getElementById('approval-popup-content').innerHTML = `
+            <h3 style="color: var(--danger);">Excluir Parcela</h3>
+            <p style="margin: 20px 0; font-size: 1.1rem; color: var(--text-light);">
+                Você está apagando uma despesa parcelada.<br><br>
+                Deseja apagar <strong style="color:var(--danger);">apenas esta</strong> ou <strong style="color:var(--success);">todas</strong> as parcelas de "${baseDesc}"?
+            </p>
+        `;
+        
+        const btnReject = document.getElementById('btn-reject-popup');
+        const btnApprove = document.getElementById('btn-approve-popup');
+        
+        // Alteramos dinamicamente os textos dos botões
+        btnReject.innerText = "Apenas Esta";
+        btnApprove.innerText = "Todas as Parcelas";
+        
+        // Ação 1: Apaga apenas o ID selecionado
+        btnReject.onclick = () => { 
+            db.entries = db.entries.filter(x => x.id !== id); 
+            finishDelete(); 
+        };
+        
+        // Ação 2: Apaga todas que tiverem a mesma descrição base, valor, categoria e dono
+        btnApprove.onclick = () => { 
+            db.entries = db.entries.filter(x => {
+                if (x.id === id) return false;
+                const m = x.desc.match(/^(.*) \(\d+\/\d+\)$/);
+                // Se tudo bater perfeitamente, ela pertence ao mesmo "pacote" e será excluída
+                return !(m && m[1] === baseDesc && x.val === e.val && x.category === e.category && x.owner === e.owner);
+            }); 
+            finishDelete(); 
+        };
+
+        const finishDelete = () => {
+            saveDB(); renderAll(); showToast("🗑 Removido com sucesso!"); window.closeModals();
+            // Retorna os botões ao texto padrão
+            btnReject.innerText = "Recusar"; 
+            btnApprove.innerText = "Aprovar";
+        };
+
+        document.getElementById('modal-approval-popup').classList.add('active');
+    } else {
+        // Exclusão normal se for despesa à vista (não caiu no Match)
+        window.showConfirmModal("Excluir", "Deseja apagar este registro permanentemente?", () => { 
+            db.entries = db.entries.filter(x => x.id !== id); 
+            saveDB(); renderAll(); showToast("🗑 Removido!"); 
+        }); 
+    }
 };
 
 window.showDeleteApprovalPopup = function(entry) {
@@ -396,7 +474,6 @@ window.handleAddEntry = function() {
 window.approveEntry = function(id) { const idx = db.entries.findIndex(e => e.id === id); if(idx > -1) { db.entries[idx].status = 'approved'; logNotification(`✅ ${currentUser.toUpperCase()} aprovou a despesa "${db.entries[idx].desc}".`); saveDB(); renderAll(); showToast("✅ Despesa aprovada!"); } };
 window.rejectEntry = function(id) { const idx = db.entries.findIndex(e => e.id === id); if(idx > -1) { if(db.entries[idx].isEdit) { db.entries[idx].status = 'rejected'; showToast("❌ Edição recusada!"); } else { db.entries[idx].type = 'personal'; db.entries[idx].status = 'approved'; showToast("❌ Despesa enviada para Pessoal!"); } saveDB(); renderAll(); } };
 window.editEntry = function(id) { const e = db.entries.find(x => x.id === id); document.getElementById('edit-id').value = e.id; document.getElementById('form-title').innerText = "Editar Registro"; document.getElementById('exp-desc').value = e.desc; document.getElementById('exp-val').value = e.val; document.getElementById('exp-cat').value = e.category; document.getElementById('exp-date').value = e.date; window.updateSplitOptions(); document.getElementById('exp-split').value = e.split; document.getElementById('parcelas-container').style.display = 'none'; document.getElementById('modal-add').classList.add('active'); };
-window.deleteEntry = function(id) { window.showConfirmModal("Excluir", "Deseja apagar este registro permanentemente?", () => { db.entries = db.entries.filter(x => x.id !== id); saveDB(); renderAll(); showToast("🗑 Removido!"); }); };
 
 window.openAlarmModal = function() { document.getElementById('modal-alarm').classList.add('active'); };
 window.handleSaveAlarm = function() { const desc = document.getElementById('alarm-desc').value; const date = document.getElementById('alarm-date').value; const time = document.getElementById('alarm-time').value; if(!desc || !date || !time) return showToast("⚠️ Preencha todos os campos do alarme!", true); db.entries.push({ id: Date.now(), isAlarm: true, desc: "⏰ " + desc, date, time, owner: currentUser, type: currentView }); saveDB(); window.closeModals(); showToast("⏰ Alarme Agendado!"); renderAll(); };
